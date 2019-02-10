@@ -92,7 +92,7 @@ class ReplySocket(StartStop):
 class PublishSocket(StartStop):
 
 
-    def __init__(self, address, timeout = 0, use_daemon=True, maxsize=0):
+    def __init__(self, address, timeout = 0., use_daemon=True, maxsize=0):
         super(PublishSocket, self).__init__()
 
         self.logger = logging.getLogger('{}.{}'.format(self.__module__, type(self).__name__))
@@ -173,7 +173,7 @@ class Server(object):
         self.address_base             = address_base
         self.socket                   = None
         self.ping_socket              = ReplySocket('%s-ping' % self.address_base, timeout=10)
-        self.solution_notifier_socket = PublishSocket('%s-new-solution' % self.address_base, timeout=10)
+        self.solution_notifier_socket = PublishSocket('%s-new-solution' % self.address_base, timeout=10 / 1000)
         self.lock = threading.RLock()
 
     def start(self, context):
