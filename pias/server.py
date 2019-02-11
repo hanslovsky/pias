@@ -45,6 +45,7 @@ class ReplySocket(StartStop):
     def __init__(
             self,
             address,
+            receive = lambda socket: socket.recv_string(),
             respond = lambda request, socket: socket.send_string(''),
             timeout = None,
             use_daemon = True,
@@ -58,6 +59,7 @@ class ReplySocket(StartStop):
         self.address            = address
         self.socket             = None
         self.listening          = False
+        self.receive            = receive
         self.respond            = respond
         self.thread             = None
         self.timeout            = timeout
@@ -89,7 +91,7 @@ class ReplySocket(StartStop):
             while this.listening and this.socket:
                 # this.logger.debug('%s: waiting to receive')
                 try:
-                    request = socket.recv_string()
+                    request = this.receive(socket)
                     this.logger.debug('%s: received `%s\'', this, request)
                 except zmq.Again:
                     request = None
