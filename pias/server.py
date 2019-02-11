@@ -10,6 +10,8 @@ try:
 except ImportError:
     import Queue as queue
 
+_logger = logging.getLogger(__name__)
+
 
 class StartStop(object):
     
@@ -22,22 +24,46 @@ class StartStop(object):
     def stop(self):
         pass
 
+# def socket_send(socket, message, suffix = None, flags=0):
+#     try:
+#         send_more = len(message) > 1
+#     except TypeError:
+#         send_more = False
+#         message = (message,)
+#
+#     send = socket.send if suffix is None else getattr(socket, 'send%s' % suffix, socket.send)
+#
+#     for m in message[:-1]:
+#         send(m, flags=flags | zmq.SNDMORE)
+#     send(message[-1], flags=flags & (~zmq.SNDMORE))
+
+
+
 class ReplySocket(StartStop):
 
 
-    def __init__(self, address, response = lambda request: '', timeout=None, use_daemon=True):
+    def __init__(
+            self,
+            address,
+            respond = lambda request, socket: socket.send_string(''),
+            timeout = None,
+            use_daemon = True,
+            socket_send_suffix = None,
+            socket_send_flags = 0):
         super(ReplySocket, self).__init__()
 
         self.logger = logging.getLogger('{}.{}'.format(self.__module__, type(self).__name__))
         self.logger.debug('Instantiating %s', type(self).__name__)
 
-        self.address    = address
-        self.socket     = None
-        self.listening  = False
-        self.response   = response
-        self.thread     = None
-        self.timeout    = timeout
-        self.use_daemon = use_daemon
+        self.address            = address
+        self.socket             = None
+        self.listening          = False
+        self.respond            = respond
+        self.thread             = None
+        self.timeout            = timeout
+        self.use_daemon         = use_daemon
+        self.socket_send_flags  = socket_send_flags
+        self.socket_send_suffix = socket_send_suffix
 
         self.logger.debug('Instantiated %s', self)
 
@@ -54,7 +80,7 @@ class ReplySocket(StartStop):
             self.socket.setsockopt(zmq.RCVTIMEO, self.timeout)
 
         socket         = self.socket
-        response       = self.response
+        respond        = self.respond
         self.listening = True
 
         this = self
@@ -70,9 +96,9 @@ class ReplySocket(StartStop):
                 except zmq.ContextTerminated:
                     break
                 if request is not None:
-                    rep = response(request)
-                    this.logger.debug('%s: sending `%s\'', this, rep)
-                    socket.send_string(rep)
+                    respond(request, socket)
+                    # this.logger.debug('%s: sending `%s\'', this, rep)
+                    # socket_send(socket, rep, flags=self.socket_send_flags, suffix=self.socket_send_suffix)
 
         self.thread = threading.Thread(target=task, name='reply-on-%s' % self.address)
         self.thread.setDaemon(self.use_daemon)

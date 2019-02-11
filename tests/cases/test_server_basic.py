@@ -20,7 +20,7 @@ class TestReqSocket(unittest.TestCase):
             req = context.socket(zmq.REQ)
             req.connect(address)
 
-            rep = ReplySocket(address, timeout=1, use_daemon=False, response=lambda req: 'response')
+            rep = ReplySocket(address, timeout=1, use_daemon=False, respond=lambda req, socket: socket.send_string('response'), socket_send_suffix='_string')
             rep.start(context)
 
             req.send_string('')
