@@ -118,7 +118,7 @@ class ReplySocket(StartStop):
 class PublishSocket(StartStop):
 
 
-    def __init__(self, address, timeout = 0., use_daemon=True, maxsize=0):
+    def __init__(self, address, send = lambda socket, message: socket.send_string(message), timeout = 0., use_daemon=True, maxsize=0):
         super(PublishSocket, self).__init__()
 
         self.logger = logging.getLogger('{}.{}'.format(self.__module__, type(self).__name__))
@@ -131,6 +131,7 @@ class PublishSocket(StartStop):
         self.thread     = None
         self.use_daemon = use_daemon
         self.running    = False
+        self.send       = send
 
         self.logger.debug('Instantiated %s', self)
 
@@ -159,10 +160,7 @@ class PublishSocket(StartStop):
                     item = None
                 if item is not None:
                     this.logger.debug('%s: sending `%s\'', this, item)
-                    if isinstance(item, str):
-                        socket.send_string(item)
-                    else:
-                        socket.send(item)
+                    this.send(socket, item)
 
         self.thread = threading.Thread(target=task, name='publish-on-%s' % self.address)
         self.thread.setDaemon(self.use_daemon)
