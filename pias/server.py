@@ -190,25 +190,20 @@ class PublishSocket(StartStop):
 
 class Server(object):
 
-    def __init__(self, address_base):
+    def __init__(self, *sockets):
         super(Server, self).__init__()
 
         self.logger = logging.getLogger('{}.{}'.format(self.__module__, type(self).__name__))
-        self.logger.debug('Instantiating server!')
-
-        self.address_base             = address_base
-        self.socket                   = None
-        self.ping_socket              = ReplySocket('%s-ping' % self.address_base, timeout=10)
-        self.solution_notifier_socket = PublishSocket('%s-new-solution' % self.address_base, timeout=10 / 1000)
-        self.lock = threading.RLock()
+        self.logger.debug('Instantiating server with sockets %s', sockets)
+        self.sockets = sockets
 
     def start(self, context):
-        self.ping_socket.start(context)
-        self.solution_notifier_socket.start(context)
+        for socket in self.sockets:
+            socket.start(context)
 
     def stop(self):
-        self.ping_socket.stop()
-        self.solution_notifier_socket.stop()
+        for socket in self.sockets:
+            socket.stop()
 
     def __str__(self):
         return '%s[address=%s]' % (type(self).__name__, self.address_base)

@@ -81,7 +81,7 @@ class TestServerBasic(unittest.TestCase):
             req = context.socket(zmq.REQ)
             req.connect('%s-ping' % address)
 
-            server = Server(address_base=address)
+            server = Server(ReplySocket('%s-ping' % address, timeout=10))
             server.start(context)
 
             req.send_string('')
