@@ -7,10 +7,11 @@ with open(path.join(here, 'README.md')) as f:
     long_description = f.read()
 
 install_requires = [
-                       # 'z5py',
-                       # 'scikit-learn',
-                       # 'nifty',
-                       # 'numpy'
+    # 'z5py',
+    'scikit-learn',
+    'nifty',
+    'numpy',
+    'zmq'
 ]
 
 setuptools.setup(
