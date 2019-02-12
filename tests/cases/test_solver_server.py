@@ -31,13 +31,17 @@ def _mk_dummy_edge_data(
     edges = np.array(
         [[0, 1],
          [1, 2],
-         [0, 2]],
+         [0, 2],
+         [1, 3],
+         [2, 3]],
         dtype=np.uint64)
 
     features = np.array(
         [[0.5, 1.0, 0.5],
          [0.7, 0.9, 0.8],
-         [0.3, 0.1, 0.2]])
+         [0.3, 0.9, 0.2],
+         [0.5, 0.2, 0.6],
+         [0.4, 0.1, 0.3]])
 
     f = z5py.File(container, 'w', use_zarr_format=False)
     f.create_dataset(edge_dataset, data=edges, dtype=np.uint64)
