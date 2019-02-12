@@ -16,7 +16,8 @@ import z5py
 import zmq
 
 from pias import SolverServer
-from pias.solver_server import _bytes_as_int, _int_as_bytes, _edges_as_bytes, _NO_SOLUTION_AVAILABLE, _SET_EDGE_REQ_EDGE_LIST, _SET_EDGE_REP_SUCCESS, _SET_EDGE_REP_DO_NOT_UNDERSTAND
+from pias.solver_server import _NO_SOLUTION_AVAILABLE, _SET_EDGE_REQ_EDGE_LIST, _SET_EDGE_REP_SUCCESS, _SET_EDGE_REP_DO_NOT_UNDERSTAND
+from pias import zmq_util
 
 
 @contextlib.contextmanager
@@ -99,11 +100,8 @@ class TestSolverCurrentSolution(unittest.TestCase):
             current_solution_socket.setsockopt(zmq.RCVTIMEO, 30)
             current_solution_socket.connect(server.get_current_solution_address())
             current_solution_socket.send_string('')
-            solution_bytes = current_solution_socket.recv()
-            _logger.debug('%d solution bytes: %s', len(solution_bytes), solution_bytes)
-            solution = _bytes_as_int(solution_bytes)
-            self.assertEqual(1, len(solution))
-            self.assertEqual(_NO_SOLUTION_AVAILABLE, solution[0])
+            solution = zmq_util.recv_int(current_solution_socket)
+            self.assertEqual(_NO_SOLUTION_AVAILABLE, solution)
 
             server.shutdown()
 
@@ -123,32 +121,25 @@ class TestSolverSetEdgeLabels(unittest.TestCase):
             edge_label_socket.setsockopt(zmq.SNDTIMEO, 30)
             edge_label_socket.setsockopt(zmq.RCVTIMEO, 30)
             edge_label_socket.connect(server.get_edge_labels_address())
-            edge_label_socket.send(_int_as_bytes(_SET_EDGE_REQ_EDGE_LIST), flags=zmq.SNDMORE)
             edge       = (edges[0, 0].item(), edges[0, 1].item(), labels[0])
-            edge_bytes = _edges_as_bytes((edge,))
-            edge_label_socket.send(edge_bytes)
-            response_code = _bytes_as_int(edge_label_socket.recv())
-            self.assertEqual(1, len(response_code))
-            self.assertEqual(_SET_EDGE_REP_SUCCESS , response_code[0])
-            num_edges = _bytes_as_int(edge_label_socket.recv())
-            self.assertEqual(1, len(num_edges))
-            self.assertEqual(1, num_edges[0])
+            zmq_util.send_more_int(edge_label_socket, _SET_EDGE_REQ_EDGE_LIST)
+            edge_label_socket.send(zmq_util._edges_as_bytes((edge,)))
+            response_code = zmq_util.recv_int(edge_label_socket)
+            self.assertEqual(_SET_EDGE_REP_SUCCESS , response_code)
+            num_edges = zmq_util.recv_int(edge_label_socket)
+            self.assertEqual(1, num_edges)
 
             edges_as_tuples = tuple((e[0].item(), e[1].item(), l) for e, l in zip(edges, labels))
-            edge_label_socket.send_multipart(msg_parts=(_int_as_bytes(_SET_EDGE_REQ_EDGE_LIST), _edges_as_bytes(edges_as_tuples)))
-            response_code = _bytes_as_int(edge_label_socket.recv())
-            self.assertEqual(1, len(response_code))
-            self.assertEqual(_SET_EDGE_REP_SUCCESS, response_code[0])
-            num_edges = _bytes_as_int(edge_label_socket.recv())
-            self.assertEqual(1, len(num_edges))
-            self.assertEqual(len(labels), num_edges[0])
+            zmq_util.send_more_int(edge_label_socket, _SET_EDGE_REQ_EDGE_LIST)
+            edge_label_socket.send(zmq_util._edges_as_bytes(edges_as_tuples))
+            response_code = zmq_util.recv_int(edge_label_socket)
+            self.assertEqual(_SET_EDGE_REP_SUCCESS, response_code)
+            num_edges = zmq_util.recv_int(edge_label_socket)
+            self.assertEqual(len(labels), num_edges)
 
-            edge_label_socket.send_multipart(msg_parts=(_int_as_bytes(-1), b''))
-            response_code = _bytes_as_int(edge_label_socket.recv())
-            self.assertEqual(1, len(response_code))
-            self.assertEqual(_SET_EDGE_REP_DO_NOT_UNDERSTAND, response_code[0])
-            message = _bytes_as_int(edge_label_socket.recv())
-            self.assertEqual(1, len(message))
-            self.assertEqual(-1, message[0])
+            zmq_util.send_ints_multipart(edge_label_socket, -1, 0)
+            response_code, message_type = zmq_util.recv_ints_multipart(edge_label_socket)
+            self.assertEqual(_SET_EDGE_REP_DO_NOT_UNDERSTAND, response_code)
+            self.assertEqual(-1, message_type)
 
             server.shutdown()

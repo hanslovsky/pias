@@ -9,3 +9,4 @@ from .random_forest import RandomForestModelCache, LabelsInconsistency, ModelNot
 from .server import ReplySocket, Server, PublishSocket
 from .solver_server import SolverServer
 from .workflow import Workflow
+from . import zmq_util
