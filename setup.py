@@ -15,7 +15,7 @@ install_requires = [
 
 setuptools.setup(
     name='pias',
-    python_requires='>=3',
+    python_requires='>=3.7',
     packages=['pias'],
     version='0.1.0.dev',
     author='Philipp Hanslovsky',
