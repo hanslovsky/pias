@@ -1,17 +1,17 @@
 from __future__ import print_function
 
 import contextlib
-import numpy as np
 import os
 import shutil
 import tempfile
-import z5py
-
 import unittest
 
+import numpy as np
+import z5py
 import zmq
 
-from pias import Workflow, SolverServer
+from pias import SolverServer
+from pias.solver_server import _bytes_as_int, _NO_SOLUTION_AVAILABLE
 
 
 @contextlib.contextmanager
@@ -43,9 +43,13 @@ def _mk_dummy_edge_data(
          [0.5, 0.2, 0.6],
          [0.4, 0.1, 0.3]])
 
+    labels = (0, 0, 0, 1, 1)
+
     f = z5py.File(container, 'w', use_zarr_format=False)
     f.create_dataset(edge_dataset, data=edges, dtype=np.uint64)
     f.create_dataset(edge_feature_dataset, data=features)
+
+    return labels
 
 
 class TestSolverServerPing(unittest.TestCase):
@@ -70,5 +74,29 @@ class TestSolverServerPing(unittest.TestCase):
                 ping_socket.send_string('')
                 ping_response = ping_socket.recv_string()
                 self.assertEqual('', ping_response)
+
+            server.shutdown()
+
+class TestSolverCurrentSolution(unittest.TestCase):
+
+    def test(self):
+
+        with _tempdir() as tmpdir:
+            address_base = 'inproc://address'
+            container    = os.path.join(tmpdir, 'edge-group')
+            _mk_dummy_edge_data(container)
+            server = SolverServer(
+                address_base=address_base,
+                edge_n5_container=container)
+
+            current_solution_socket = server.context.socket(zmq.REQ)
+            current_solution_socket.setsockopt(zmq.SNDTIMEO, 30)
+            current_solution_socket.setsockopt(zmq.RCVTIMEO, 30)
+            current_solution_socket.connect(server.get_current_solution_address())
+            current_solution_socket.send_string('')
+            solution_bytes = current_solution_socket.recv()
+            solution = _bytes_as_int(solution_bytes)
+            self.assertEqual(1, len(solution))
+            self.assertEqual(_NO_SOLUTION_AVAILABLE, solution[0])
 
             server.shutdown()
