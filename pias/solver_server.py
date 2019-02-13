@@ -15,6 +15,7 @@ _NO_SOLUTION_AVAILABLE = 1
 
 _SET_EDGE_REP_SUCCESS           = 0
 _SET_EDGE_REP_DO_NOT_UNDERSTAND = 1
+_SET_EDGE_REP_EXCEPTION         = 2
 
 _SET_EDGE_REQ_EDGE_LIST         = 0
 
@@ -58,13 +59,15 @@ class SolverServer(object):
 
         def set_edge_labels_send(message, socket):
             method = message[0]
-            if method == _SET_EDGE_REQ_EDGE_LIST:
-                labels = _bytes_as_edges(message[1])
-                send_ints_multipart(socket, _SET_EDGE_REP_SUCCESS, len(labels))
-                # socket.send_multipart(msg_parts=(_int_as_bytes(_SET_EDGE_REP_SUCCESS), _int_as_bytes(len(labels))))
-            else:
-                send_ints_multipart(socket, _SET_EDGE_REP_DO_NOT_UNDERSTAND, method)
-                # socket.send_multipart(msg_parts=(_int_as_bytes(_SET_EDGE_REP_DO_NOT_UNDERSTAND), _int_as_bytes(method)))
+            try:
+                if method == _SET_EDGE_REQ_EDGE_LIST:
+                    labels = _bytes_as_edges(message[1])
+                    send_ints_multipart(socket, _SET_EDGE_REP_SUCCESS, len(labels))
+                else:
+                    send_ints_multipart(socket, _SET_EDGE_REP_DO_NOT_UNDERSTAND, method)
+            except Exception as e:
+                send_more_int(socket, _SET_EDGE_REP_EXCEPTION)
+                socket.send_string(str(e))
 
         self.ping_address             = '%s-ping' % address_base
         self.current_solution_address = '%s-current-solution' % address_base

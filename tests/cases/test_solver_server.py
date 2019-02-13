@@ -16,7 +16,7 @@ import z5py
 import zmq
 
 from pias import SolverServer
-from pias.solver_server import _NO_SOLUTION_AVAILABLE, _SET_EDGE_REQ_EDGE_LIST, _SET_EDGE_REP_SUCCESS, _SET_EDGE_REP_DO_NOT_UNDERSTAND
+from pias.solver_server import _NO_SOLUTION_AVAILABLE, _SET_EDGE_REQ_EDGE_LIST, _SET_EDGE_REP_SUCCESS, _SET_EDGE_REP_DO_NOT_UNDERSTAND, _SET_EDGE_REP_EXCEPTION
 from pias import zmq_util
 
 
@@ -141,5 +141,12 @@ class TestSolverSetEdgeLabels(unittest.TestCase):
             response_code, message_type = zmq_util.recv_ints_multipart(edge_label_socket)
             self.assertEqual(_SET_EDGE_REP_DO_NOT_UNDERSTAND, response_code)
             self.assertEqual(-1, message_type)
+
+            zmq_util.send_more_int(edge_label_socket, _SET_EDGE_REQ_EDGE_LIST)
+            edge_label_socket.send(bytearray(8))
+            response_code = zmq_util.recv_int(edge_label_socket)
+            self.assertEqual(_SET_EDGE_REP_EXCEPTION, response_code)
+            exception = edge_label_socket.recv_string()
+
 
             server.shutdown()
