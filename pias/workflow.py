@@ -56,7 +56,7 @@ class Workflow(object):
     def train_model(self, edge_features=None):
         if edge_features is None:
             _, edge_features, _ = self.edge_feature_cache.get_edges_and_features()
-        samples, labels = self.edge_label_cache.get_sample_and_label_arrays(edge_features)
+        samples, labels, _ = self.edge_label_cache.get_sample_and_label_arrays(edge_features)
         self.random_forest_model_cache.train_model(samples, labels)
 
     def get_solution(self):
