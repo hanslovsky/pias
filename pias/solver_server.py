@@ -62,6 +62,7 @@ class SolverServer(object):
             try:
                 if method == _SET_EDGE_REQ_EDGE_LIST:
                     labels = _bytes_as_edges(message[1])
+                    workflow.set_edge_labels(tuple((e[0], e[1]) for e in labels), tuple(e[2] for e in labels))
                     send_ints_multipart(socket, _SET_EDGE_REP_SUCCESS, len(labels))
                 else:
                     send_ints_multipart(socket, _SET_EDGE_REP_DO_NOT_UNDERSTAND, method)
