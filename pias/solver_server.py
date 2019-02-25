@@ -38,19 +38,22 @@ class SolverServer(object):
             edge_dataset=_EDGE_DATASET,
             edge_feature_dataset=_EDGE_FEATURE_DATASET):
         super(SolverServer, self).__init__()
+        self.address_base = address_base
         self.logger = logging.getLogger('{}.{}'.format(self.__module__, type(self).__name__))
-        workflow = Workflow(
+        self.logger.debug('Initializing workflow')
+        self.workflow = Workflow(
             edge_n5_container=edge_n5_container,
             edge_dataset=edge_dataset,
             edge_feature_dataset=edge_feature_dataset)
+        self.logger.debug('Initialized workflow')
 
         def current_solution(_, socket):
-            solution = workflow.get_solution()
-            if solution is None:
+            solution = self.workflow.get_latest_state()
+            if solution is None or solution.solution is None:
                 send_int(socket, _NO_SOLUTION_AVAILABLE)
             else:
                 send_more_int(socket, _SUCCESS)
-                socket.send(_ndarray_as_bytes(solution))
+                socket.send(_ndarray_as_bytes(solution.solution))
 
         def set_edge_labels_receive(socket):
             method = recv_int(socket)
@@ -62,7 +65,7 @@ class SolverServer(object):
             try:
                 if method == _SET_EDGE_REQ_EDGE_LIST:
                     labels = _bytes_as_edges(message[1])
-                    workflow.set_edge_labels(tuple((e[0], e[1]) for e in labels), tuple(e[2] for e in labels))
+                    self.workflow.request_set_edge_labels(tuple((e[0], e[1]) for e in labels), tuple(e[2] for e in labels))
                     send_ints_multipart(socket, _SET_EDGE_REP_SUCCESS, len(labels))
                 else:
                     send_ints_multipart(socket, _SET_EDGE_REP_DO_NOT_UNDERSTAND, method)
@@ -80,7 +83,7 @@ class SolverServer(object):
         # solution_update_request_socket = ReplySocket('%s-get-solution' % address_base, timeout=10, respond=update_request_received_confirmation)
         set_edge_labels_request_socket = ReplySocket(self.set_edge_labels_address, timeout=10, respond=set_edge_labels_send, receive=set_edge_labels_receive)
 
-        workflow.add_solution_update_listener(lambda solution: solution_notifier_socket.queue.put(''))
+        self.workflow.add_solution_update_listener(lambda solution: solution_notifier_socket.queue.put(''))
 
 
         self.context = zmq.Context(io_threads=io_threads)
@@ -107,5 +110,6 @@ class SolverServer(object):
 
     def shutdown(self):
         # TODO handle things like saving etc in here
+        self.logger.info('Shutting down server at base address %s', self.address_base)
         self.server.stop()
-
+        self.workflow.stop()

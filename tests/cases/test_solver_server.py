@@ -1,9 +1,6 @@
 from __future__ import print_function
 
 import logging
-import time
-
-_logger = logging.getLogger(__name__)
 
 import contextlib
 import os
@@ -60,15 +57,21 @@ def _mk_dummy_edge_data(
 
 class TestSolverServerPing(unittest.TestCase):
 
+    def __init__(self, *args, **kwargs):
+        super(TestSolverServerPing, self).__init__(*args, **kwargs)
+        self.logger = logging.getLogger('{}.{}'.format(self.__module__, type(self).__name__))
+
     def test(self):
 
         with _tempdir() as tmpdir:
             address_base = 'inproc://address'
             container    = os.path.join(tmpdir, 'edge-group')
             _mk_dummy_edge_data(container)
+            self.logger.info('Starting solver server')
             server = SolverServer(
                 address_base=address_base,
                 edge_n5_container=container)
+            self.logger.info('Started solver server')
 
             ping_socket = server.context.socket(zmq.REQ)
             ping_socket.setsockopt(zmq.SNDTIMEO, 30)
@@ -77,13 +80,20 @@ class TestSolverServerPing(unittest.TestCase):
 
             # test ping three times
             for i in range(3):
+                self.logger.debug('sending ping')
                 ping_socket.send_string('')
+                self.logger.debug('waiting for pong')
                 ping_response = ping_socket.recv_string()
+                self.logger.debug('pong is `%s\'', ping_response)
                 self.assertEqual('', ping_response)
 
             server.shutdown()
 
 class TestSolverCurrentSolution(unittest.TestCase):
+
+    def __init__(self, *args, **kwargs):
+        super(TestSolverCurrentSolution, self).__init__(*args, **kwargs)
+        self.logger = logging.getLogger('{}.{}'.format(self.__module__, type(self).__name__))
 
     def test(self):
 
@@ -107,7 +117,13 @@ class TestSolverCurrentSolution(unittest.TestCase):
 
 class TestSolverSetEdgeLabels(unittest.TestCase):
 
+    def __init__(self, *args, **kwargs):
+        super(TestSolverSetEdgeLabels, self).__init__(*args, **kwargs)
+        self.logger = logging.getLogger('{}.{}'.format(self.__module__, type(self).__name__))
+
     def test(self):
+        logging.basicConfig(level=logging.INFO)
+        self.logger.setLevel(logging.DEBUG)
 
         with _tempdir() as tmpdir:
             address_base = 'inproc://address'
@@ -125,6 +141,7 @@ class TestSolverSetEdgeLabels(unittest.TestCase):
             zmq_util.send_more_int(edge_label_socket, _SET_EDGE_REQ_EDGE_LIST)
             edge_label_socket.send(zmq_util._edges_as_bytes((edge,)))
             response_code = zmq_util.recv_int(edge_label_socket)
+            self.logger.debug('Received response code %s', response_code)
             self.assertEqual(_SET_EDGE_REP_SUCCESS , response_code)
             num_edges = zmq_util.recv_int(edge_label_socket)
             self.assertEqual(1, num_edges)

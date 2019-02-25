@@ -1,7 +1,6 @@
-import nifty
 import nifty.graph.opt.multicut as nifty_mc
 import numpy as np
-import threading
+
 
 def set_costs_from_uv_ids(graph, costs, uv_pairs, values):
     edge_ids        = graph.findEdges(uv_pairs)
@@ -18,65 +17,37 @@ def solve_multicut(graph, costs):
     return solver.optimize()
 
 
-class AgglomerationModelCache(object):
-    
-    def __init__(self):
-        super(AgglomerationModelCache, self).__init__()
+def _default_map_weights(probabilities):
+    # scale the probabilities to avoid diverging costs
+    # and transform to costs
+    p_min = 0.001
+    p_max = 1. - p_min
+    probabilities = (p_max - p_min) * probabilities + p_min
+    costs = np.log((1. - probabilities) / probabilities)
 
-        self.graph    = None
-        self.solution = None
-        self.edges    = None
-        self.lock     = threading.RLock()
+    # weight by edge size
+    # if edge_sizes is not None:
+    #     assert edge_sizes.shape == costs.shape
+    #     weight = edge_sizes / edge_sizes.max()
+    #     costs = weight * costs
 
-    def update_graph(self, edges):
-        max_id = edges.max().item()
-        graph  = nifty.graph.UndirectedGraph(max_id + 1)
-        graph.insertEdges(edges)
-        with self.lock:
-            self.graph    = graph
-            self.solution = None
-            self.edges    = edges
+    return costs
 
-    def optimize(self, weights):
 
-        with self.lock:
+class MulticutAgglomeration(object):
 
-            if self.graph is None or self.edges is None:
-                return
+    def __init__(self, map_weights=_default_map_weights):
+        super(MulticutAgglomeration, self).__init__()
+        self.map_weights = map_weights
 
-            assert self.edges.shape[0] == weights.shape[0]
+    def optimize(self, graph, weights):
 
-            graph = self.graph
+        if graph is None or weights is None:
+            return
 
-        costs    = self._map_weights(weights)
+        costs    = self.map_weights(weights)
         solution = solve_multicut(graph, costs)
-
-        with self.lock:
-            self.solution = solution
-
         return solution
-
-    def get_solution(self):
-        with self.lock:
-            return self.solution
-
-
-    def _map_weights(self, probabilities):
-
-        # scale the probabilities to avoid diverging costs
-        # and transform to costs
-        p_min = 0.001
-        p_max = 1. - p_min
-        probabilities = (p_max - p_min) * probabilities + p_min
-        costs = np.log((1. - probabilities) / probabilities)
-
-        # weight by edge size
-        # if edge_sizes is not None:
-        #     assert edge_sizes.shape == costs.shape
-        #     weight = edge_sizes / edge_sizes.max()
-        #     costs = weight * costs
-
-        return costs
 
 
 

@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-from .agglomeration_model import AgglomerationModelCache
+from .agglomeration_model import MulticutAgglomeration
 from .edge_labels import EdgeLabelCache
 from .edges import EdgeFeatureIO
 # TODO needs to come after import of ensure name is present. Combine EdgeFeatureCache and EdgeFeatureIO into one module

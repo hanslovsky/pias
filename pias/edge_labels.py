@@ -9,7 +9,6 @@ class EdgeLabelCache(object):
         self.edge_label_map     = {}
         self.edge_index_mapping = None
         self.lock               = threading.RLock()
-        self.edge_labels_dirty  = False
 
     def update_labels(self, edges, labels):
         with self.lock:
@@ -22,18 +21,12 @@ class EdgeLabelCache(object):
                     continue
                 index = self.edge_index_mapping[e]
                 self.edge_label_map[index] = l
-            self.edge_labels_dirty = True
 
     def get_sample_and_label_arrays(self, samples):
         with self.lock:
             edge_indices = np.fromiter(self.edge_label_map.keys(), dtype=np.uint64)
             labels       = np.fromiter(self.edge_label_map.values(), dtype=np.uint64)
-            is_dirty     = self.edge_labels_dirty
-        return samples[edge_indices, ...], labels, is_dirty
-
-    def clean_labels(self):
-        with self.lock:
-            self.edge_labels_dirty = False
+        return samples[edge_indices, ...], labels
 
     def update_edge_index_mapping(self, edge_index_mapping):
         with self.lock:

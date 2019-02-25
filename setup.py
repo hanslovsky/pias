@@ -6,10 +6,12 @@ here = path.abspath(path.dirname(__file__))
 with open(path.join(here, 'README.md')) as f:
     long_description = f.read()
 
+
+# z5py and nifty not on pypi (and probably will never be). nifty is even wrong package
 install_requires = [
     # 'z5py',
     'scikit-learn',
-    'nifty',
+    # 'nifty',
     'numpy',
     'zmq'
 ]
