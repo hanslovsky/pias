@@ -135,7 +135,7 @@ class Workflow(object):
     def _update_edges(self):
         with self.lock:
             self.edge_feature_cache.update_edge_features()
-            self.edge_label_cache.update_edge_index_mapping(self.edge_feature_cache.get_edges_and_features()[1])
+            self.edge_label_cache.update_edge_index_mapping(self.edge_feature_cache.get_edges_and_features()[2])
 
     def request_set_edge_labels(self, edges, labels):
         # self.update_queue.put(lambda: self._set_edge_labels(edges, labels))

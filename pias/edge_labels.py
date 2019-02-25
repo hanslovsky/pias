@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 import threading
 
@@ -6,6 +8,7 @@ class EdgeLabelCache(object):
     
     def __init__(self):
         super(EdgeLabelCache, self).__init__()
+        self.logger = logging.getLogger('{}.{}'.format(self.__module__, type(self).__name__))
         self.edge_label_map     = {}
         self.edge_index_mapping = None
         self.lock               = threading.RLock()
@@ -30,6 +33,7 @@ class EdgeLabelCache(object):
 
     def update_edge_index_mapping(self, edge_index_mapping):
         with self.lock:
+            self.logger.debug('Updating edge-index-mapping: %s', edge_index_mapping)
             self.edge_index_mapping = edge_index_mapping
 
 
