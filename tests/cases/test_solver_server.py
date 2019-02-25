@@ -67,11 +67,11 @@ class TestSolverServerPing(unittest.TestCase):
             address_base = 'inproc://address'
             container    = os.path.join(tmpdir, 'edge-group')
             _mk_dummy_edge_data(container)
-            self.logger.info('Starting solver server')
+            self.logger.debug('Starting solver server')
             server = SolverServer(
                 address_base=address_base,
                 edge_n5_container=container)
-            self.logger.info('Started solver server')
+            self.logger.debug('Started solver server')
 
             ping_socket = server.context.socket(zmq.REQ)
             ping_socket.setsockopt(zmq.SNDTIMEO, 30)
@@ -122,8 +122,6 @@ class TestSolverSetEdgeLabels(unittest.TestCase):
         self.logger = logging.getLogger('{}.{}'.format(self.__module__, type(self).__name__))
 
     def test(self):
-        logging.basicConfig(level=logging.INFO)
-        self.logger.setLevel(logging.DEBUG)
 
         with _tempdir() as tmpdir:
             address_base = 'inproc://address'
@@ -164,6 +162,7 @@ class TestSolverSetEdgeLabels(unittest.TestCase):
             response_code = zmq_util.recv_int(edge_label_socket)
             self.assertEqual(_SET_EDGE_REP_EXCEPTION, response_code)
             exception = edge_label_socket.recv_string()
+            self.logger.debug('Expected exception is: `%s\'', exception)
 
 
             server.shutdown()

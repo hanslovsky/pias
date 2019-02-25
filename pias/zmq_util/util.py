@@ -25,7 +25,7 @@ def _bytes_as_edges(b):
     # uint64,uint64,byte
     entry_size = 20
     a = len(b)
-    assert len(b) % entry_size == 0
+    assert len(b) % entry_size == 0, 'Message length is not integer multiple of entry size: 20 (8 + 8 + 4)'
     num_edges = len(b) // entry_size
     pattern = f'{_ENDIANNESS}%s' % (_EDGE_PATTERN * num_edges)
     e = struct.unpack(pattern, b)

@@ -61,15 +61,19 @@ class SolverServer(object):
             return method, bytez
 
         def set_edge_labels_send(message, socket):
+            self.logger.debug('Message is %s', message)
             method = message[0]
+            self.logger.debug('Method is %s', method)
             try:
                 if method == _SET_EDGE_REQ_EDGE_LIST:
                     labels = _bytes_as_edges(message[1])
+                    self.logger.debug('Labels are %s', labels)
                     self.workflow.request_set_edge_labels(tuple((e[0], e[1]) for e in labels), tuple(e[2] for e in labels))
                     send_ints_multipart(socket, _SET_EDGE_REP_SUCCESS, len(labels))
                 else:
                     send_ints_multipart(socket, _SET_EDGE_REP_DO_NOT_UNDERSTAND, method)
             except Exception as e:
+                self.logger.debug('Sending exception `%s\' (%s)', e, type(e))
                 send_more_int(socket, _SET_EDGE_REP_EXCEPTION)
                 socket.send_string(str(e))
 
@@ -83,7 +87,7 @@ class SolverServer(object):
         # solution_update_request_socket = ReplySocket('%s-get-solution' % address_base, timeout=10, respond=update_request_received_confirmation)
         set_edge_labels_request_socket = ReplySocket(self.set_edge_labels_address, timeout=10, respond=set_edge_labels_send, receive=set_edge_labels_receive)
 
-        self.workflow.add_solution_update_listener(lambda solution: solution_notifier_socket.queue.put(''))
+        self.workflow.add_solution_update_listener(lambda exit_code, solution: solution_notifier_socket.queue.put(''))
 
 
         self.context = zmq.Context(io_threads=io_threads)
@@ -110,6 +114,6 @@ class SolverServer(object):
 
     def shutdown(self):
         # TODO handle things like saving etc in here
-        self.logger.info('Shutting down server at base address %s', self.address_base)
+        self.logger.debug('Shutting down server at base address %s', self.address_base)
         self.server.stop()
         self.workflow.stop()
