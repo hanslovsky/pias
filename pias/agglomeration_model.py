@@ -1,5 +1,8 @@
+import logging
 import nifty.graph.opt.multicut as nifty_mc
 import numpy as np
+
+_logger = logging.getLogger(__name__)
 
 
 def set_costs_from_uv_ids(graph, costs, uv_pairs, values):
@@ -12,6 +15,7 @@ def set_costs_from_uv_ids(graph, costs, uv_pairs, values):
 
 def solve_multicut(graph, costs):
     assert graph.numberOfEdges == len(costs)
+    _logger.debug('Creating multi-cut object from graph %s and costs %s (%s)', graph, costs.shape, costs)
     objective = nifty_mc.multicutObjective(graph, costs)
     solver = objective.kernighanLinFactory(warmStartGreedy=True).create(objective)
     return solver.optimize()
@@ -20,6 +24,7 @@ def solve_multicut(graph, costs):
 def _default_map_weights(probabilities):
     # scale the probabilities to avoid diverging costs
     # and transform to costs
+    _logger.debug('Mapping probabilities %s (%s)', probabilities.shape, probabilities)
     p_min = 0.001
     p_max = 1. - p_min
     probabilities = (p_max - p_min) * probabilities + p_min
@@ -41,6 +46,8 @@ class MulticutAgglomeration(object):
         self.map_weights = map_weights
 
     def optimize(self, graph, weights):
+
+        _logger.debug('Optimizing multi-cut with graph %s and weights %s (%s)', graph, weights.shape, weights)
 
         if graph is None or weights is None:
             return
