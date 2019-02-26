@@ -1,1 +1,1 @@
-# Paintera Interactive Solver Server
+# Paintera Interactive Agglomeration Server
