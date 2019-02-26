@@ -1,11 +1,12 @@
 import logging
 import struct
+import time
 
 import zmq
 
 from .workflow import Workflow
 from .server   import PublishSocket, ReplySocket, Server
-from .zmq_util import send_int, recv_int, send_ints_multipart, recv_ints_multipart, send_more_int, _ndarray_as_bytes, _bytes_as_edges
+from .zmq_util import send_int, recv_int, send_ints_multipart, recv_ints_multipart, send_more_int, _ndarray_as_bytes, _bytes_as_edges, send_ints
 
 _EDGE_DATASET         = 'edges'
 _EDGE_FEATURE_DATASET = 'edge-features'
@@ -18,6 +19,8 @@ _SET_EDGE_REP_DO_NOT_UNDERSTAND = 1
 _SET_EDGE_REP_EXCEPTION         = 2
 
 _SET_EDGE_REQ_EDGE_LIST         = 0
+
+_SOLUTION_UPDATE_REQUEST_RECEIVED = 0
 
 
 class SolverServer(object):
@@ -34,6 +37,7 @@ class SolverServer(object):
             self,
             address_base,
             edge_n5_container,
+            next_solution_id = 0,
             io_threads=1,
             edge_dataset=_EDGE_DATASET,
             edge_feature_dataset=_EDGE_FEATURE_DATASET):
@@ -42,6 +46,7 @@ class SolverServer(object):
         self.logger = logging.getLogger('{}.{}'.format(self.__module__, type(self).__name__))
         self.logger.debug('Initializing workflow')
         self.workflow = Workflow(
+            next_solution_id=next_solution_id, # TODO read from project file
             edge_n5_container=edge_n5_container,
             edge_dataset=edge_dataset,
             edge_feature_dataset=edge_feature_dataset)
@@ -77,17 +82,28 @@ class SolverServer(object):
                 send_more_int(socket, _SET_EDGE_REP_EXCEPTION)
                 socket.send_string(str(e))
 
-        self.ping_address             = '%s-ping' % address_base
-        self.current_solution_address = '%s-current-solution' % address_base
-        self.set_edge_labels_address  = '%s-set-edge-labels' % address_base
+        def update_request_received_confirmation(_, socket):
+            next_solution_id = self.workflow.request_update_state()
+            send_ints_multipart(socket, _SOLUTION_UPDATE_REQUEST_RECEIVED, next_solution_id)
+
+        def publish_new_solution(socket, message):
+            self.logger.debug('Publishing new solution %s', message)
+            send_ints(socket, *message)
+
+
+        self.ping_address                    = '%s-ping' % address_base
+        self.current_solution_address        = '%s-current-solution' % address_base
+        self.set_edge_labels_address         = '%s-set-edge-labels' % address_base
+        self.solution_update_request_address = '%s-update-solution' % address_base
+        self.new_solution_address            = '%s-new-solution' % address_base
 
         ping_socket                    = ReplySocket(self.ping_address, timeout=10)
-        solution_notifier_socket       = PublishSocket('%s-new-solution' % address_base, timeout=10 / 1000, send=lambda socket, message: socket.sent_str(message)) # queue timeout is specified in seconds
+        solution_notifier_socket       = PublishSocket(self.new_solution_address, timeout=10 / 1000, send=publish_new_solution) # queue timeout is specified in seconds
         solution_request_socket        = ReplySocket(self.current_solution_address, timeout=10, respond=current_solution)
-        # solution_update_request_socket = ReplySocket('%s-get-solution' % address_base, timeout=10, respond=update_request_received_confirmation)
+        solution_update_request_socket = ReplySocket(self.solution_update_request_address, timeout=10, respond=update_request_received_confirmation)
         set_edge_labels_request_socket = ReplySocket(self.set_edge_labels_address, timeout=10, respond=set_edge_labels_send, receive=set_edge_labels_receive)
 
-        self.workflow.add_solution_update_listener(lambda exit_code, solution: solution_notifier_socket.queue.put(''))
+        self.workflow.add_solution_update_listener(lambda solution_id, exit_code, solution: solution_notifier_socket.queue.put((solution_id, exit_code)))
 
 
         self.context = zmq.Context(io_threads=io_threads)
@@ -95,9 +111,11 @@ class SolverServer(object):
             ping_socket,
             solution_notifier_socket,
             solution_request_socket,
-            set_edge_labels_request_socket)
+            set_edge_labels_request_socket,
+            solution_update_request_socket)
 
         logging.info('Starting solver server at base address %s', address_base)
+        logging.debug('Soluition notifier socket publishes at %s', self.new_solution_address)
 
         self.server.start(context=self.context)
 
@@ -111,6 +129,12 @@ class SolverServer(object):
 
     def get_edge_labels_address(self):
         return self.set_edge_labels_address
+
+    def get_solution_update_request_address(self):
+        return self.solution_update_request_address
+
+    def get_new_solution_address(self):
+        return self.new_solution_address
 
     def shutdown(self):
         # TODO handle things like saving etc in here

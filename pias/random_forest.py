@@ -12,18 +12,17 @@ class ModelNotTrained(Exception):
 class LabelsInconsistency(Exception):
 
     def __init__(self, required_labels, actual_labels):
-        super(LabelsInconsistency, self).__init__('Need examples for %s but only got examples for %s', (required_labels, actual_labels))
+        super(LabelsInconsistency, self).__init__('Need examples for %s but only got examples for %s' % (required_labels, actual_labels))
         self.required_labels = required_labels
         self.actual_labels   = actual_labels
 
 class RandomForestModelCache(object):
 
-    def __init__(self, n_estimators=100, labels=(0,1), random_forest_kwargs=None):
+    def __init__(self, labels=(0,1), random_forest_kwargs=None):
         super(RandomForestModelCache, self).__init__()
         self.model                = None
         self.lock                 = threading.RLock()
         self.labels               = labels
-        self.n_estimators         = n_estimators
         self.random_forest_kwargs = {} if random_forest_kwargs is None else random_forest_kwargs
 
 
@@ -32,7 +31,7 @@ class RandomForestModelCache(object):
         if not np.all(np.unique(self.labels) == np.unique(labels)):
             raise LabelsInconsistency(self.labels, np.unique(labels))
 
-        rf = RandomForestClassifier(n_estimators=self.n_estimators, **self.random_forest_kwargs)
+        rf = RandomForestClassifier(**self.random_forest_kwargs)
         rf.fit(samples, labels)
         with self.lock:
             self.model = rf

@@ -21,6 +21,7 @@ class EdgeLabelCache(object):
 
             for e, l in zip(edges, labels):
                 if e not in self.edge_index_mapping:
+                    self.logger.debug('Edge %s not in edge-index-mapping %s', e, self.edge_index_mapping)
                     continue
                 index = self.edge_index_mapping[e]
                 self.edge_label_map[index] = l

@@ -1,3 +1,5 @@
 from __future__ import absolute_import
 
 from .test_server_basic import TestReqSocket
+from .test_edge_feature_io import TestEdgeIO
+from .test_solver_server import TestRequestUpdateSolution, TestSolverCurrentSolution, TestSolverServerPing, TestSolverSetEdgeLabels
