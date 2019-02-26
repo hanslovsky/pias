@@ -25,7 +25,7 @@ class EdgeFeatureCache(object):
 
     def update_edge_features(self):
         edges, features    = self.feature_io.read()
-        edge_index_mapping = {index: (e[0], e[1]) for index, e in enumerate(edges)}
+        edge_index_mapping = {(e[0], e[1]): index for index, e in enumerate(edges)}
         max_id = edges.max().item()
         graph = nifty.graph.UndirectedGraph(max_id + 1)
         graph.insertEdges(edges)
