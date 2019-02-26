@@ -9,11 +9,23 @@ _INTEGER_PATTERN = f'{_ENDIANNESS}i'
 _UINT64_PATTERN  = f'{_ENDIANNESS}Q'
 _EDGE_PATTERN    = 'QQi'
 
+
+def _i32_pattern(n=1):
+    i32s = 'i' * n
+    return f'{_ENDIANNESS}{i32s}'
+
 def _int_as_bytes(number):
     return struct.pack(_INTEGER_PATTERN, number)
 
+def _ints_as_bytes(*numbers):
+    return struct.pack(_i32_pattern(len(numbers)), *numbers)
+
 def _bytes_as_int(b):
     return struct.unpack(_INTEGER_PATTERN, b)[0]
+
+def _bytes_as_ints(b):
+    # expect 4 bytes per int
+    return struct.unpack(_i32_pattern(len(b) // 4), b)
 
 def _edges_as_bytes(edges):
     pattern = f'{_ENDIANNESS}%s' % (_EDGE_PATTERN * len(edges))
@@ -39,11 +51,17 @@ def _ndarray_as_bytes(ndarray):
 def send_int(socket, number, flags=0, copy=True, track=False, routing_id=None, group=None):
     socket.send(_int_as_bytes(number), flags=flags, copy=copy, track=track, routing_id=routing_id, group=group)
 
+def send_ints(socket, *numbers, flags=0, copy=True, track=False, routing_id=None, group=None):
+    socket.send(_ints_as_bytes(*numbers), flags=flags, copy=copy, track=track, routing_id=routing_id, group=group)
+
 def send_more_int(socket, number, flags=0, copy=True, track=False, routing_id=None, group=None):
     socket.send(_int_as_bytes(number), flags=flags | zmq.SNDMORE, copy=copy, track=track, routing_id=routing_id, group=group)
 
 def recv_int(socket, flags=0, copy=True, track=False):
     return _bytes_as_int(socket.recv(flags=flags, copy=copy, track=track))
+
+def recv_ints(socket, flags=0, copy=True, track=False):
+    return _bytes_as_ints(socket.recv(flags=flags, copy=copy, track=track))
 
 def send_ints_multipart(socket, *numbers, flags=0, copy=True, track=False, **kwargs):
     socket.send_multipart(msg_parts=tuple(_int_as_bytes(n) for n in numbers), flags=flags, copy=copy, track=track, **kwargs)
