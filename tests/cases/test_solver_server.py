@@ -107,15 +107,19 @@ class TestSolverCurrentSolution(unittest.TestCase):
                 address_base=address_base,
                 edge_n5_container=container)
 
-            current_solution_socket = server.context.socket(zmq.REQ)
-            current_solution_socket.setsockopt(zmq.SNDTIMEO, 30)
-            current_solution_socket.setsockopt(zmq.RCVTIMEO, 30)
-            current_solution_socket.connect(server.get_current_solution_address())
-            current_solution_socket.send_string('')
-            solution = zmq_util.recv_int(current_solution_socket)
-            self.assertEqual(_NO_SOLUTION_AVAILABLE, solution)
-
-            server.shutdown()
+            try:
+                current_solution_socket = server.context.socket(zmq.REQ)
+                current_solution_socket.setsockopt(zmq.SNDTIMEO, 30)
+                current_solution_socket.setsockopt(zmq.RCVTIMEO, 30)
+                current_solution_socket.connect(server.get_current_solution_address())
+                current_solution_socket.send_string('')
+                solution   = zmq_util.recv_int(current_solution_socket)
+                extra_info = current_solution_socket.recv_string()
+                self.logger.debug('extra info `%s\'', extra_info)
+                self.assertEqual(_NO_SOLUTION_AVAILABLE, solution)
+                self.assertEqual('', extra_info)
+            finally:
+                server.shutdown()
 
 class TestSolverSetEdgeLabels(unittest.TestCase):
 
@@ -169,32 +173,6 @@ class TestSolverSetEdgeLabels(unittest.TestCase):
 
             server.shutdown()
 
-class TestSolverCurrentSolution(unittest.TestCase):
-
-    def __init__(self, *args, **kwargs):
-        super(TestSolverCurrentSolution, self).__init__(*args, **kwargs)
-        self.logger = logging.getLogger('{}.{}'.format(self.__module__, type(self).__name__))
-
-    def test(self):
-
-        with _tempdir() as tmpdir:
-            address_base = 'inproc://address'
-            container    = os.path.join(tmpdir, 'edge-group')
-            _mk_dummy_edge_data(container)
-            server = SolverServer(
-                address_base=address_base,
-                edge_n5_container=container)
-
-            current_solution_socket = server.context.socket(zmq.REQ)
-            current_solution_socket.setsockopt(zmq.SNDTIMEO, 30)
-            current_solution_socket.setsockopt(zmq.RCVTIMEO, 30)
-            current_solution_socket.connect(server.get_current_solution_address())
-            current_solution_socket.send_string('')
-            solution = zmq_util.recv_int(current_solution_socket)
-            self.assertEqual(_NO_SOLUTION_AVAILABLE, solution)
-
-            server.shutdown()
-
 class TestRequestUpdateSolution(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
@@ -202,7 +180,6 @@ class TestRequestUpdateSolution(unittest.TestCase):
         self.logger = logging.getLogger('{}.{}'.format(self.__module__, type(self).__name__))
 
     def test(self):
-        logging.basicConfig(level=logging.INFO)
 
         with _tempdir() as tmpdir:
             address_base = 'inproc://address'
@@ -294,6 +271,23 @@ class TestRequestUpdateSolution(unittest.TestCase):
                 self.logger.debug('Count down latch reached zero')
 
                 new_solution_listener_thread.join()
+
+                get_solution_socket = server.context.socket(zmq.REQ)
+                get_solution_socket.connect(server.get_current_solution_address())
+
+                get_solution_socket.send(b'')
+                solution_exit_code = zmq_util.recv_int(get_solution_socket)
+                self.logger.debug('solution exit code %d', solution_exit_code)
+                self.assertEqual(0, solution_exit_code)
+                solution = get_solution_socket.recv()
+                solution_ndarray = zmq_util._bytes_as_ndarray(solution, dtype=np.uint64)
+                self.logger.debug('solution as ndarray: %s', solution_ndarray)
+                self.assertEqual(4, solution_ndarray.size)
+                self.assertEqual((4,), solution_ndarray.shape)
+                labels_first_three = np.unique(solution_ndarray[:3])
+                self.logger.debug('unique labels for first three entries: %s', labels_first_three)
+                self.assertEqual(1, labels_first_three.size)
+                self.assertNotEqual(labels_first_three[0], solution_ndarray[3])
 
             finally:
                 server.shutdown()

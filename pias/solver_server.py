@@ -55,7 +55,8 @@ class SolverServer(object):
         def current_solution(_, socket):
             solution = self.workflow.get_latest_state()
             if solution is None or solution.solution is None:
-                send_int(socket, _NO_SOLUTION_AVAILABLE)
+                send_more_int(socket, _NO_SOLUTION_AVAILABLE)
+                socket.send(b'')
             else:
                 send_more_int(socket, _SUCCESS)
                 socket.send(_ndarray_as_bytes(solution.solution))

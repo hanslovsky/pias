@@ -1,3 +1,4 @@
+import numpy as np
 import struct
 import zmq
 
@@ -47,6 +48,12 @@ def _ndarray_as_bytes(ndarray):
     # java always big endian
     # https://stackoverflow.com/questions/981549/javas-virtual-machines-endianness
     return (ndarray.byteswap() if _USE_BIG_ENDIAN else ndarray).tobytes()
+
+def _bytes_as_ndarray(buffer, dtype, count=-1, offset=0):
+    # java always big endian
+    # https://stackoverflow.com/questions/981549/javas-virtual-machines-endianness
+    ndarray = np.frombuffer(buffer, dtype=dtype, count=-1, offset=0)
+    return ndarray.byteswap() if _USE_BIG_ENDIAN else ndarray
 
 def send_int(socket, number, flags=0, copy=True, track=False, routing_id=None, group=None):
     socket.send(_int_as_bytes(number), flags=flags, copy=copy, track=track, routing_id=routing_id, group=group)
