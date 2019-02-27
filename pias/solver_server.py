@@ -1,5 +1,6 @@
 import logging
 import struct
+import sys
 import time
 
 import zmq
@@ -115,8 +116,12 @@ class SolverServer(object):
             set_edge_labels_request_socket,
             solution_update_request_socket)
 
-        logging.info('Starting solver server at base address %s', address_base)
-        logging.debug('Soluition notifier socket publishes at %s', self.new_solution_address)
+        logging.info('Starting solver server at base address          %s', address_base)
+        logging.info('Ping server at                                  %s', self.ping_address)
+        logging.info('Request current solution at                     %s', self.current_solution_address)
+        logging.info('Submit edge labels at                           %s', self.set_edge_labels_address)
+        logging.info('Request update of current solution at           %s', self.solution_update_request_address)
+        logging.info('Subscribe to be notified about new solutions at %s', self.new_solution_address)
 
         self.server.start(context=self.context)
 
@@ -142,3 +147,26 @@ class SolverServer(object):
         self.logger.debug('Shutting down server at base address %s', self.address_base)
         self.server.stop()
         self.workflow.stop()
+
+
+
+def server_main(argv=None):
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--container', required=True, help='N5 FS Container with group that contains edges as pairs of fragment labels and features')
+    parser.add_argument('--group', required=True, help=f'Group inside CONTAINER that contains datasets `{_EDGE_DATASET}\' and `{_EDGE_FEATURE_DATASET}\'')
+    parser.add_argument('--address-base', required=False, help='Address for zmq communication.', default='pias')
+    parser.add_argument('--num-io-threads', required=False, type=int, default=1)
+    parser.add_argument('--log-level', required=False, choices=('NOTSET', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL', 'FATAL'), default='INFO')
+
+    args = parser.parse_args(args=argv)
+    logging.basicConfig(level=logging.getLevelName(args.log_level))
+
+    server = SolverServer(
+        edge_n5_container=args.container,
+        edge_dataset='/'.join((args.group, _EDGE_DATASET)),
+        edge_feature_dataset='/'.join((args.group, _EDGE_FEATURE_DATASET)),
+        next_solution_id=0,
+        io_threads=args.num_io_threads,
+        address_base=args.address_base)
+
