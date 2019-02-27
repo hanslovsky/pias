@@ -37,7 +37,7 @@ def _default_map_weights(probabilities):
     _logger.debug('Mapping probabilities %s (%s)', probabilities.shape, probabilities)
     p_min = 0.001
     p_max = 1. - p_min
-    probabilities = (p_max - p_min) * probabilities + p_min
+    probabilities = np.clip(probabilities, a_min=p_min, a_max=p_max)
     costs = np.log((1. - probabilities) / probabilities)
     _logger.debug('Mapped probabilities %s (%s)', costs.shape, costs)
 
