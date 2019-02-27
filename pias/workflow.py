@@ -43,7 +43,7 @@ class State(object):
     def compute(self):
 
         try:
-            samples, labels = self.labeled_samples
+            samples, labels, indices = self.labeled_samples
 
 
             try:
@@ -51,20 +51,20 @@ class State(object):
                 self.random_forest.train_model(samples=samples, labels=labels)
                 self.logger.debug('Trained random forest model')
             except LabelsInconsistency as e:
-                self.logger.debug('Error training random forest %s: %s', type(e), e)
+                self.logger.error('Error training random forest %s: %s', type(e), e)
                 return State.RANDOM_FOREST_TRAINING_FAILED
 
             try:
                 probabilities = self.random_forest.predict(self.edge_features)
                 # do we need first or second class probabilities?
                 probabilities_zero = probabilities[..., 1]
-                self.solution = self.agglomeration.optimize(self.graph, probabilities_zero)
+                self.solution = self.agglomeration.optimize(self.graph, probabilities_zero, known_labels=(indices, labels))
                 return State.SUCCESS
             except Exception as e:
-                self.logger.debug('Error when optimizing multi-cut model %s: %s', type(e), e)
+                self.logger.error('Error when optimizing multi-cut model %s: %s', type(e), e)
                 return State.MC_OPTIMIZATION_FAILED
         except Exception as e:
-            self.logger.info('Encountered unknown error %s: %s', type(e), e, exc_info=1)
+            self.logger.error('Encountered unknown error %s: %s', type(e), e, exc_info=1)
             return State.UNKNOWN_ERRROR
 
 

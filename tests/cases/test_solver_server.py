@@ -42,13 +42,14 @@ def _mk_dummy_edge_data(
         dtype=np.uint64)
 
     features = np.array(
-        [[0.5, 1.0, 0.5],
-         [0.7, 0.9, 0.8],
-         [0.3, 0.9, 0.2],
-         [0.5, 0.2, 0.6],
+        [[0.7, 1.0, 0.5],
+         [0.7, 0.9, 0.5],
+         [0.6, 0.9, 0.4],
+         [0.5, 0.05, 0.6],
          [0.4, 0.1, 0.3]])
 
-    labels = (0, 0, 0, 1, 1)
+    # merge: 1, split: 0
+    labels = (1, 1, 1, 0, 0)
 
     f = z5py.File(container, 'w', use_zarr_format=False)
     f.create_dataset(edge_dataset, data=edges, dtype=np.uint64)
@@ -207,10 +208,12 @@ class TestRequestUpdateSolution(unittest.TestCase):
                     while latch.get_count() > 0:
                         try:
                             new_solution_info = zmq_util.recv_ints(new_solution_listener)
-                            self.logger.debug('Received notification about new solution %s', new_solution_info)
-                            self.assertEqual(expected_solution_infos[len(solution_infos)], new_solution_info, 'Failed for example %d' % (n_examples - latch.get_count()))
-                            solution_infos.append(new_solution_info)
-                            latch.count_down()
+                            try:
+                                self.logger.debug('Received notification about new solution %s', new_solution_info)
+                                self.assertEqual(expected_solution_infos[len(solution_infos)], new_solution_info, 'Failed for example %d' % (n_examples - latch.get_count()))
+                                solution_infos.append(new_solution_info)
+                            finally:
+                                latch.count_down()
                         except zmq.error.Again as e:
                             self.logger.debug('Ignoring exception of type %s: %s', type(e), e)
 
@@ -263,7 +266,7 @@ class TestRequestUpdateSolution(unittest.TestCase):
                 self.assertEqual(2, response[1]) # state id
 
                 self.logger.debug('Waiting for countdown latch')
-                latch_timeout = 2
+                latch_timeout = 10
                 latch.wait_for_countdown(timeout=latch_timeout)
                 latch_remaining = latch.get_count()
                 self.logger.debug('%d count downs remaining', latch_remaining)

@@ -30,7 +30,7 @@ class EdgeLabelCache(object):
         with self.lock:
             edge_indices = np.fromiter(self.edge_label_map.keys(), dtype=np.uint64)
             labels       = np.fromiter(self.edge_label_map.values(), dtype=np.uint64)
-        return samples[edge_indices, ...], labels
+        return samples[edge_indices, ...], labels, edge_indices
 
     def update_edge_index_mapping(self, edge_index_mapping):
         with self.lock:
