@@ -4,6 +4,16 @@
 
 ## Installation
 
+The minimum python version is `3.6`.
+
+Besides the packages specified in `setup.py`, you will need to install the following packages that are not installable via pip:
+ - [`nifty`](https://github.com/DerThorsten/nifty) available on conda through the `cpape` channel
+ - [`z5py`](https://github.com/constantinpape/z5) available on conda through the `conda-forge` channel
+
+You can install these dependencies through conda via the aforementioned channels. Otherwise, follow the build instructions on the linked github repositories.
+
+If you do not install `pyzmq` through `conda` make sure that [`libzmq`](https://github.com/zeromq/libzmq) is installed on your system.
+
 ``` shell
 pip install git+https://github.com/saalfeldlab/pias
 ```
@@ -15,7 +25,7 @@ pip install git+https://github.com/saalfeldlab/pias
 
   - `${address_base}-ping`             - ping the server at this address to see if it is alive (`REQ/REP`)
   - `${address_base}-current-solution` - request current solution (`REQ/REP`)
-  - `${address_base}-set-edge-labels`  - set labels for edges: (multiples of) `(e1, e2, label)` (`REQ/REP`)
+  - `${address_base}-set-edge-labels`  - set labels for edges: (multiples of) `(e1, e2, label)` (`REQ/REP`) where label is one of `{0, 1}`
   - `${address_base}-update-solution`  - request update of current solution (`REQ/REP`)
   - `${address_base}-new-solution`     - be notified about updates of the current solution (`PUB/SUB`)
 
