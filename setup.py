@@ -1,11 +1,16 @@
 import setuptools
-from os import path
+import os
 
 name = 'pias'
-here = path.abspath(path.dirname(__file__))
+here = os.path.abspath(os.path.dirname(__file__))
 
-with open(path.join(here, 'README.md')) as f:
+with open(os.path.join(here, 'README.md')) as f:
     long_description = f.read()
+
+version_info = {}
+with open(os.path.join(here, name, 'version_info.py')) as fp:
+    exec(fp.read(), version_info)
+version = version_info['_version']
 
 
 # z5py and nifty not on pypi (and probably will never be). nifty is even wrong package
@@ -34,7 +39,7 @@ setuptools.setup(
     name='pias',
     python_requires='>=3.7',
     packages=packages,
-    version='0.1.0.dev',
+    version=f'{version}',
     author='Philipp Hanslovsky',
     author_email='hanslovskyp@janelia.hhmi.org',
     description='Interactive agglomeration scheme for paintera',

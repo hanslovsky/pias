@@ -152,12 +152,14 @@ class SolverServer(object):
 
 def server_main(argv=None):
     import argparse
+    from . import version
     parser = argparse.ArgumentParser()
     parser.add_argument('--container', required=True, help='N5 FS Container with group that contains edges as pairs of fragment labels and features')
     parser.add_argument('--group', required=True, help=f'Group inside CONTAINER that contains datasets `{_EDGE_DATASET}\' and `{_EDGE_FEATURE_DATASET}\'')
     parser.add_argument('--address-base', required=False, help='Address for zmq communication.', default='pias')
     parser.add_argument('--num-io-threads', required=False, type=int, default=1)
     parser.add_argument('--log-level', required=False, choices=('NOTSET', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL', 'FATAL'), default='INFO')
+    parser.add_argument('--version', action='version', version=f'{version}')
 
     args = parser.parse_args(args=argv)
     logging.basicConfig(level=logging.getLevelName(args.log_level))
@@ -169,4 +171,6 @@ def server_main(argv=None):
         next_solution_id=0,
         io_threads=args.num_io_threads,
         address_base=args.address_base)
+
+    # TODO add handler to shutdown server on ctrl-c
 
