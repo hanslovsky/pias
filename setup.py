@@ -13,7 +13,7 @@ with open(os.path.join(here, name, 'version_info.py')) as fp:
 version = version_info['_version']
 
 
-# z5py and nifty not on pypi (and probably will never be). nifty is even wrong package
+# z5py and nifty not on pypi (and probably will never be). nifty is even wrong package on pypi
 install_requires = [
     # 'z5py',
     'scikit-learn',
@@ -37,7 +37,7 @@ packages = [
 
 setuptools.setup(
     name='pias',
-    python_requires='>=3.7',
+    python_requires='>=3.6',
     packages=packages,
     version=f'{version}',
     author='Philipp Hanslovsky',
