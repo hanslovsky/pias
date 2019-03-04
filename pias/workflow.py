@@ -111,7 +111,7 @@ class Workflow(object):
     def _execute_updates(self):
         self.logger.debug('Executing updates')
         while self._is_running:
-            self.logger.debug('Still running? %s', self._is_running)
+            # self.logger.debug('Still running? %s', self._is_running)
             try:
                 # why does Pycharm think that `timeout` is an unexpected argument?
                 # next_task = self.update_queue.get()
