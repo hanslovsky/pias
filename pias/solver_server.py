@@ -5,12 +5,14 @@ import time
 
 import zmq
 
+from .ext import z5py
 from .workflow import Workflow
 from .server   import PublishSocket, ReplySocket, Server
 from .zmq_util import send_int, recv_int, send_ints_multipart, recv_ints_multipart, send_more_int, _ndarray_as_bytes, _bytes_as_edges, send_ints
 
 _EDGE_DATASET         = 'edges'
 _EDGE_FEATURE_DATASET = 'edge-features'
+_PAINTERA_DATA_KEY    = 'painteraData'
 
 _SUCCESS               = 0
 _NO_SOLUTION_AVAILABLE = 1
@@ -33,22 +35,41 @@ class SolverServer(object):
     @staticmethod
     def default_edge_feature_dataset():
         return _EDGE_FEATURE_DATASET
-    
+
+    @staticmethod
+    def is_paintera_data(container, dataset):
+        with z5py.File(container, 'r') as f:
+            return _PAINTERA_DATA_KEY in f[dataset].attrs
+
+    @staticmethod
+    def is_paintera_label_data(container, dataset):
+        with z5py.File(container, 'r') as f:
+            return f[dataset].attrs[_PAINTERA_DATA_KEY]['type'] == 'label'
+
     def __init__(
             self,
             address_base,
-            edge_n5_container,
+            n5_container,
+            paintera_dataset,
             next_solution_id = 0,
-            io_threads=1,
-            edge_dataset=_EDGE_DATASET,
-            edge_feature_dataset=_EDGE_FEATURE_DATASET):
+            io_threads = 1):
         super(SolverServer, self).__init__()
+
+        if not SolverServer.is_paintera_data(n5_container, paintera_dataset):
+            raise Exception('Dataset `{}\' is not paintera data in container `{}\''.format(paintera_dataset, n5_container))
+
+        if not SolverServer.is_paintera_label_data(n5_container, paintera_dataset):
+            raise Exception('Dataset `{}\' exists in container `{}\' but is not label data'.format(paintera_dataset, n5_container))
+
+        edge_dataset = (paintera_dataset + '/' + SolverServer.default_edge_dataset()).strip('/')
+        edge_feature_dataset = (paintera_dataset + '/' + SolverServer.default_edge_feature_dataset()).strip('/')
+
         self.address_base = address_base
         self.logger = logging.getLogger('{}.{}'.format(self.__module__, type(self).__name__))
         self.logger.debug('Initializing workflow')
         self.workflow = Workflow(
             next_solution_id=next_solution_id, # TODO read from project file
-            edge_n5_container=edge_n5_container,
+            edge_n5_container=n5_container,
             edge_dataset=edge_dataset,
             edge_feature_dataset=edge_feature_dataset)
         self.logger.debug('Initialized workflow')
@@ -165,7 +186,7 @@ def server_main(argv=None):
     logging.basicConfig(level=logging.getLevelName(args.log_level))
 
     server = SolverServer(
-        edge_n5_container=args.container,
+        n5_container=args.container,
         edge_dataset='/'.join((args.group, _EDGE_DATASET)),
         edge_feature_dataset='/'.join((args.group, _EDGE_FEATURE_DATASET)),
         next_solution_id=0,

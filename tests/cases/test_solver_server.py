@@ -15,7 +15,7 @@ import zmq
 from pias import SolverServer
 from pias import zmq_util
 from pias.solver_server import _NO_SOLUTION_AVAILABLE, _SET_EDGE_REQ_EDGE_LIST, _SET_EDGE_REP_SUCCESS, \
-    _SET_EDGE_REP_DO_NOT_UNDERSTAND, _SET_EDGE_REP_EXCEPTION
+    _SET_EDGE_REP_DO_NOT_UNDERSTAND, _SET_EDGE_REP_EXCEPTION, _PAINTERA_DATA_KEY
 from pias.threading import CountDownLatch
 
 
@@ -51,9 +51,10 @@ def _mk_dummy_edge_data(
     # merge: 1, split: 0
     labels = (1, 1, 1, 0, 0)
 
-    f = z5py.File(container, 'w', use_zarr_format=False)
-    f.create_dataset(edge_dataset, data=edges, dtype=np.uint64)
-    f.create_dataset(edge_feature_dataset, data=features)
+    with z5py.File(container, 'w', use_zarr_format=False) as f:
+        f.create_dataset(edge_dataset, data=edges, dtype=np.uint64)
+        f.create_dataset(edge_feature_dataset, data=features)
+        f[''].attrs[_PAINTERA_DATA_KEY] = {'type' : 'label'}
 
     return edges, features, labels
 
@@ -73,7 +74,8 @@ class TestSolverServerPing(unittest.TestCase):
             self.logger.debug('Starting solver server')
             server = SolverServer(
                 address_base=address_base,
-                edge_n5_container=container)
+                n5_container=container,
+                paintera_dataset='')
             self.logger.debug('Started solver server')
 
             ping_socket = server.context.socket(zmq.REQ)
@@ -106,7 +108,8 @@ class TestSolverCurrentSolution(unittest.TestCase):
             _mk_dummy_edge_data(container)
             server = SolverServer(
                 address_base=address_base,
-                edge_n5_container=container)
+                n5_container=container,
+                paintera_dataset='')
 
             try:
                 current_solution_socket = server.context.socket(zmq.REQ)
@@ -136,7 +139,8 @@ class TestSolverSetEdgeLabels(unittest.TestCase):
             edges, _, labels = _mk_dummy_edge_data(container)
             server = SolverServer(
                 address_base=address_base,
-                edge_n5_container=container)
+                n5_container=container,
+                paintera_dataset='')
 
             edge_label_socket = server.context.socket(zmq.REQ)
             edge_label_socket.setsockopt(zmq.SNDTIMEO, 30)
@@ -188,7 +192,8 @@ class TestRequestUpdateSolution(unittest.TestCase):
             edges, features, labels = _mk_dummy_edge_data(container)
             server = SolverServer(
                 address_base=address_base,
-                edge_n5_container=container)
+                n5_container=container,
+                paintera_dataset='/')
 
             expected_solution_infos = ((0, 2), (1, 2), (2, 0))
             solution_infos = []
