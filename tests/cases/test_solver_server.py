@@ -16,6 +16,9 @@ from pias import SolverServer
 from pias import zmq_util
 from pias.solver_server import _NO_SOLUTION_AVAILABLE, _SET_EDGE_REQ_EDGE_LIST, _SET_EDGE_REP_SUCCESS, \
     _SET_EDGE_REP_DO_NOT_UNDERSTAND, _SET_EDGE_REP_EXCEPTION, _PAINTERA_DATA_KEY
+
+from pias.solver_server import API_RESPONSE_DATA_STRING, API_RESPONSE_ENDPOINT_UNKNOWN, API_RESPONSE_UNKNOWN_ERROR, \
+    API_RESPONSE_DATA_INT, API_RESPONSE_DATA_UNKNOWN, API_RESPONSE_DATA_BYTES, API_HELP_STRING_TEMPLATE, API_RESPONSE_OK
 from pias.threading import CountDownLatch
 
 
@@ -30,8 +33,12 @@ def _tempdir():
 
 def _mk_dummy_edge_data(
         container,
+        paintera_dataset='',
         edge_dataset=SolverServer.default_edge_dataset(),
         edge_feature_dataset=SolverServer.default_edge_feature_dataset()):
+
+    edge_dataset = (paintera_dataset + '/' + edge_dataset).lstrip('/')
+    edge_feature_dataset = (paintera_dataset + '/' + edge_feature_dataset).lstrip('/')
 
     edges = np.array(
         [[0, 1],
@@ -54,7 +61,7 @@ def _mk_dummy_edge_data(
     with z5py.File(container, 'w', use_zarr_format=False) as f:
         f.create_dataset(edge_dataset, data=edges, dtype=np.uint64)
         f.create_dataset(edge_feature_dataset, data=features)
-        f[''].attrs[_PAINTERA_DATA_KEY] = {'type' : 'label'}
+        f[paintera_dataset].attrs[_PAINTERA_DATA_KEY] = {'type' : 'label'}
 
     return edges, features, labels
 
@@ -76,23 +83,25 @@ class TestSolverServerPing(unittest.TestCase):
                 address_base=address_base,
                 n5_container=container,
                 paintera_dataset='')
-            self.logger.debug('Started solver server')
+            try:
+                self.logger.debug('Started solver server')
 
-            ping_socket = server.context.socket(zmq.REQ)
-            ping_socket.setsockopt(zmq.SNDTIMEO, 30)
-            ping_socket.setsockopt(zmq.RCVTIMEO, 30)
-            ping_socket.connect(server.get_ping_address())
+                ping_socket = server.context.socket(zmq.REQ)
+                ping_socket.setsockopt(zmq.SNDTIMEO, 30)
+                ping_socket.setsockopt(zmq.RCVTIMEO, 30)
+                ping_socket.connect(server.get_ping_address())
 
-            # test ping three times
-            for i in range(3):
-                self.logger.debug('sending ping')
-                ping_socket.send_string('')
-                self.logger.debug('waiting for pong')
-                ping_response = ping_socket.recv_string()
-                self.logger.debug('pong is `%s\'', ping_response)
-                self.assertEqual('', ping_response)
+                # test ping three times
+                for i in range(3):
+                    self.logger.debug('sending ping')
+                    ping_socket.send_string('')
+                    self.logger.debug('waiting for pong')
+                    ping_response = ping_socket.recv_string()
+                    self.logger.debug('pong is `%s\'', ping_response)
+                    self.assertEqual('', ping_response)
 
-            server.shutdown()
+            finally:
+                server.shutdown()
 
 class TestSolverCurrentSolution(unittest.TestCase):
 
@@ -142,41 +151,42 @@ class TestSolverSetEdgeLabels(unittest.TestCase):
                 n5_container=container,
                 paintera_dataset='')
 
-            edge_label_socket = server.context.socket(zmq.REQ)
-            edge_label_socket.setsockopt(zmq.SNDTIMEO, 30)
-            edge_label_socket.setsockopt(zmq.RCVTIMEO, 30)
-            edge_label_socket.connect(server.get_edge_labels_address())
-            edge       = (edges[0, 0].item(), edges[0, 1].item(), labels[0])
-            zmq_util.send_more_int(edge_label_socket, _SET_EDGE_REQ_EDGE_LIST)
-            edge_label_socket.send(zmq_util._edges_as_bytes((edge,)))
-            response_code = zmq_util.recv_int(edge_label_socket)
-            self.logger.debug('Received response code %s', response_code)
-            self.assertEqual(_SET_EDGE_REP_SUCCESS , response_code)
-            num_edges = zmq_util.recv_int(edge_label_socket)
-            self.assertEqual(1, num_edges)
+            try:
+                edge_label_socket = server.context.socket(zmq.REQ)
+                edge_label_socket.setsockopt(zmq.SNDTIMEO, 30)
+                edge_label_socket.setsockopt(zmq.RCVTIMEO, 30)
+                edge_label_socket.connect(server.get_edge_labels_address())
+                edge       = (edges[0, 0].item(), edges[0, 1].item(), labels[0])
+                zmq_util.send_more_int(edge_label_socket, _SET_EDGE_REQ_EDGE_LIST)
+                edge_label_socket.send(zmq_util._edges_as_bytes((edge,)))
+                response_code = zmq_util.recv_int(edge_label_socket)
+                self.logger.debug('Received response code %s', response_code)
+                self.assertEqual(_SET_EDGE_REP_SUCCESS , response_code)
+                num_edges = zmq_util.recv_int(edge_label_socket)
+                self.assertEqual(1, num_edges)
 
-            edges_as_tuples = tuple((e[0].item(), e[1].item(), l) for e, l in zip(edges, labels))
-            zmq_util.send_more_int(edge_label_socket, _SET_EDGE_REQ_EDGE_LIST)
-            edge_label_socket.send(zmq_util._edges_as_bytes(edges_as_tuples))
-            response_code = zmq_util.recv_int(edge_label_socket)
-            self.assertEqual(_SET_EDGE_REP_SUCCESS, response_code)
-            num_edges = zmq_util.recv_int(edge_label_socket)
-            self.assertEqual(len(labels), num_edges)
+                edges_as_tuples = tuple((e[0].item(), e[1].item(), l) for e, l in zip(edges, labels))
+                zmq_util.send_more_int(edge_label_socket, _SET_EDGE_REQ_EDGE_LIST)
+                edge_label_socket.send(zmq_util._edges_as_bytes(edges_as_tuples))
+                response_code = zmq_util.recv_int(edge_label_socket)
+                self.assertEqual(_SET_EDGE_REP_SUCCESS, response_code)
+                num_edges = zmq_util.recv_int(edge_label_socket)
+                self.assertEqual(len(labels), num_edges)
 
-            zmq_util.send_ints_multipart(edge_label_socket, -1, 0)
-            response_code, message_type = zmq_util.recv_ints_multipart(edge_label_socket)
-            self.assertEqual(_SET_EDGE_REP_DO_NOT_UNDERSTAND, response_code)
-            self.assertEqual(-1, message_type)
+                zmq_util.send_ints_multipart(edge_label_socket, -1, 0)
+                response_code, message_type = zmq_util.recv_ints_multipart(edge_label_socket)
+                self.assertEqual(_SET_EDGE_REP_DO_NOT_UNDERSTAND, response_code)
+                self.assertEqual(-1, message_type)
 
-            zmq_util.send_more_int(edge_label_socket, _SET_EDGE_REQ_EDGE_LIST)
-            edge_label_socket.send(bytearray(8))
-            response_code = zmq_util.recv_int(edge_label_socket)
-            self.assertEqual(_SET_EDGE_REP_EXCEPTION, response_code)
-            exception = edge_label_socket.recv_string()
-            self.logger.debug('Expected exception is: `%s\'', exception)
+                zmq_util.send_more_int(edge_label_socket, _SET_EDGE_REQ_EDGE_LIST)
+                edge_label_socket.send(bytearray(8))
+                response_code = zmq_util.recv_int(edge_label_socket)
+                self.assertEqual(_SET_EDGE_REP_EXCEPTION, response_code)
+                exception = edge_label_socket.recv_string()
+                self.logger.debug('Expected exception is: `%s\'', exception)
 
-
-            server.shutdown()
+            finally:
+                server.shutdown()
 
 class TestRequestUpdateSolution(unittest.TestCase):
 
@@ -296,6 +306,89 @@ class TestRequestUpdateSolution(unittest.TestCase):
                 self.logger.debug('unique labels for first three entries: %s', labels_first_three)
                 self.assertEqual(1, labels_first_three.size)
                 self.assertNotEqual(labels_first_three[0], solution_ndarray[3])
+
+            finally:
+                server.shutdown()
+
+
+
+class TestApiEndpoint(unittest.TestCase):
+
+    def __init__(self, *args, **kwargs):
+        super(TestApiEndpoint, self).__init__(*args, **kwargs)
+        self.logger = logging.getLogger('{}.{}'.format(self.__module__, type(self).__name__))
+
+    def test(self):
+
+        with _tempdir() as tmpdir:
+            address_base = 'inproc://address'
+            dataset      = 'paintera-dataset'
+            container    = os.path.join(tmpdir, 'pias.n5')
+            _mk_dummy_edge_data(container, paintera_dataset=dataset)
+            server = SolverServer(
+                address_base=address_base,
+                n5_container=container,
+                paintera_dataset=dataset)
+
+            try:
+                api_socket = server.context.socket(zmq.REQ)
+                api_socket.setsockopt(zmq.SNDTIMEO, 30)
+                api_socket.setsockopt(zmq.RCVTIMEO, 30)
+                api_socket.connect(server.get_api_endpoint_address())
+                api_socket.send(b'')
+                self.assertEqual(b'', api_socket.recv())
+                api_socket.send_string('/')
+                self.assertEqual('', api_socket.recv_string())
+
+                api_socket.send_string('/help')
+                help_response_code = zmq_util.recv_int(api_socket)
+                self.assertEqual(API_RESPONSE_OK, help_response_code)
+                help_number_of_messages = zmq_util.recv_int(api_socket)
+                self.assertEqual(1, help_number_of_messages)
+                help_message_type = zmq_util.recv_int(api_socket)
+                self.assertEqual(API_RESPONSE_DATA_STRING, help_message_type)
+                help_message = api_socket.recv_string()
+                self.logger.debug(help_message)
+                self.assertEqual(SolverServer.create_help_message(address_base), help_message)
+
+                api_socket.send_string('/api/n5/container')
+                container_response_code = zmq_util.recv_int(api_socket)
+                self.assertEqual(API_RESPONSE_OK, container_response_code)
+                container_number_of_messages = zmq_util.recv_int(api_socket)
+                self.assertEqual(1, container_number_of_messages)
+                container_message_type = zmq_util.recv_int(api_socket)
+                self.assertEqual(API_RESPONSE_DATA_STRING, container_message_type)
+                received_container = api_socket.recv_string()
+                self.logger.debug('Received container %s (started server with %s)', received_container, container)
+                self.assertEqual(container, received_container)
+
+                api_socket.send_string('/api/n5/dataset')
+                dataset_response_code = zmq_util.recv_int(api_socket)
+                self.assertEqual(API_RESPONSE_OK, dataset_response_code)
+                dataset_number_of_messages = zmq_util.recv_int(api_socket)
+                self.assertEqual(1, dataset_number_of_messages)
+                dataset_message_type = zmq_util.recv_int(api_socket)
+                self.assertEqual(API_RESPONSE_DATA_STRING, dataset_message_type)
+                received_dataset = api_socket.recv_string()
+                self.logger.debug('Received dataset %s (started server with %s)', received_dataset, dataset)
+                self.assertEqual(dataset, received_dataset)
+
+                api_socket.send_string('/api/n5/all')
+                all_response_code = zmq_util.recv_int(api_socket)
+                self.assertEqual(API_RESPONSE_OK, all_response_code)
+                all_number_of_messages = zmq_util.recv_int(api_socket)
+                self.assertEqual(2, all_number_of_messages)
+                all_container_message_type = zmq_util.recv_int(api_socket)
+                self.assertEqual(API_RESPONSE_DATA_STRING, all_container_message_type)
+                received_all_container = api_socket.recv_string()
+                self.logger.debug('Received all container %s (started server with %s)', received_all_container, container)
+                self.assertEqual(container, received_all_container)
+                all_dataset_message_type = zmq_util.recv_int(api_socket)
+                self.assertEqual(API_RESPONSE_DATA_STRING, all_dataset_message_type)
+                received_all_dataset = api_socket.recv_string()
+                self.logger.debug('Received all dataset %s (started server with %s)', received_all_dataset, dataset)
+                self.assertEqual(dataset, received_all_dataset)
+
 
             finally:
                 server.shutdown()

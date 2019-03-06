@@ -26,6 +26,58 @@ _SET_EDGE_REQ_EDGE_LIST         = 0
 _SOLUTION_UPDATE_REQUEST_RECEIVED = 0
 
 
+API_RESPONSE_OK               = 0
+API_RESPONSE_UNKNOWN_ERROR    = 1
+API_RESPONSE_ENDPOINT_UNKNOWN = 2
+
+API_RESPONSE_DATA_STRING  = 0
+API_RESPONSE_DATA_BYTES   = 1
+API_RESPONSE_DATA_INT     = 2
+API_RESPONSE_DATA_UNKNOWN = 3
+
+API_HELP_STRING_TEMPLATE = '''
+Paintera Interactive Solver Server
+
+Connect to {address_base} via a zmq.REP socket and access information via endpoints.
+The /help endpoint sends  a single zmq string response. All endpoints under /api send at least two messages:
+ - one integer (0 if endpoint is known, 1 if unknown error occurred during processing, 2 if endpoint is unknown)
+ - one integer specifying the number of messages to be sent (might be 0)
+ - optional (if number of messages is larger than 0) n times:
+   - integer indicating type of message:
+      - 0 string
+      - 1 bytes
+      - 2 integer
+      - 3 unknown/structured (look at help if available, will be sent as bytes)
+   - actual contents
+
+`'
+    REQ/REP Repsond empty string as pong
+/
+    REQ/REP Respond empty string as pong
+/help
+    REQ/REP Send this help message (single zmq string response)
+/api/n5/container
+    REQ/REP Path to n5 container holding paintera dataset with edges and features
+/api/n5/dataset
+    REQ/REP Path to paintera dataset in n5 container
+/api/n5/all
+    REQ/REP Send both container and dataset as multiple messages.
+
+Use the following addresses for specific queries:
+
+{ping_address}
+    REQ/REP: Responds with empty string as pong
+{current_solution_address}
+    REQ/REP: Responds with current solution (if any)
+{set_edge_labels_address}
+    REQ/REP: Submit list of edge labels
+{solution_update_request_address}
+    PUB/SUB: Subscribe to `' (empty string) to be notified whenever a new solution is available
+{api_endpoint_address}
+    REQ/REP for api endpoints
+'''
+
+
 class SolverServer(object):
 
     @staticmethod
@@ -45,6 +97,57 @@ class SolverServer(object):
     def is_paintera_label_data(container, dataset):
         with z5py.File(container, 'r') as f:
             return f[dataset].attrs[_PAINTERA_DATA_KEY]['type'] == 'label'
+
+    @staticmethod
+    def ping_address(address_base):
+        return '%s-ping' % address_base
+
+    @staticmethod
+    def current_solution_address(address_base):
+        return '%s-current-solution' % address_base
+
+    @staticmethod
+    def set_edge_labels_address(address_base):
+        return '%s-set-edge-labels' % address_base
+
+    @staticmethod
+    def solution_update_request_address(address_base):
+        return '%s-update-solution' % address_base
+
+    @staticmethod
+    def new_solution_address(address_base):
+        return '%s-new-solution' % address_base
+
+    @staticmethod
+    def api_endpoint_address(address_base):
+        return address_base
+
+    @staticmethod
+    def api_endpoint_respond(socket, return_code, *messages):
+
+        send_more_int(socket, return_code)
+        send_int(socket, len(messages), flags=0 if len(messages) == 0 else zmq.SNDMORE)
+        for index, (message_type, message) in enumerate(messages):
+            send_more_int(socket, message_type)
+            flag = 0 if index == len(messages) - 1 else zmq.SNDMORE
+            if message_type == API_RESPONSE_DATA_STRING:
+                socket.send_string(message, flags=flag)
+            elif message_type == API_RESPONSE_DATA_BYTES or message_type == API_RESPONSE_DATA_UNKNOWN:
+                socket.send(message, flags=flag)
+            elif message_type == API_RESPONSE_DATA_INT:
+                send_ints(socket, message, flags=flag)
+
+
+    @staticmethod
+    def create_help_message(address_base):
+        return API_HELP_STRING_TEMPLATE.format(
+            address_base=address_base,
+            ping_address=SolverServer.ping_address(address_base),
+            current_solution_address=SolverServer.current_solution_address(address_base),
+            set_edge_labels_address=SolverServer.set_edge_labels_address(address_base),
+            solution_update_request_address=SolverServer.solution_update_request_address(address_base),
+            new_solution_address=SolverServer.new_solution_address(address_base),
+            api_endpoint_address=SolverServer.api_endpoint_address(address_base))
 
     def __init__(
             self,
@@ -113,13 +216,45 @@ class SolverServer(object):
             self.logger.debug('Publishing new solution %s', message)
             send_ints(socket, *message)
 
+        def api_socket_send(endpoint, socket):
+            if len(endpoint) == 0 or endpoint == '' or endpoint == '/':
+                socket.send(b'')
+                return
+            try:
+                return_code = API_RESPONSE_OK
+                message = '/' + endpoint.lstrip('/')
+                # special case for ping
+                if message == '/help' or message == 'help':
+                    help_message = SolverServer.create_help_message(self.address_base)
+                    self.logger.debug("Help message requested: %s", help_message)
+                    messages = ((API_RESPONSE_DATA_STRING, help_message),)
+                elif message == '/api/n5/all':
+                    messages = ((API_RESPONSE_DATA_STRING, n5_container), (API_RESPONSE_DATA_STRING, paintera_dataset))
+                elif message == '/api/n5/container':
+                    messages = ((API_RESPONSE_DATA_STRING, n5_container),)
+                elif message == '/api/n5/dataset':
+                    messages = ((API_RESPONSE_DATA_STRING, paintera_dataset),)
+                    self.logger.info('Collected dataset as message: %s', messages)
+                else:
+                    return_code = API_RESPONSE_ENDPOINT_UNKNOWN
+                    messages = ((API_RESPONSE_DATA_STRING, "Endpoint unknown"), (API_RESPONSE_DATA_STRING, endpoint))
 
-        self.ping_address                    = '%s-ping' % address_base
-        self.current_solution_address        = '%s-current-solution' % address_base
-        self.set_edge_labels_address         = '%s-set-edge-labels' % address_base
-        self.solution_update_request_address = '%s-update-solution' % address_base
-        self.new_solution_address            = '%s-new-solution' % address_base
+            except Exception as e:
+                return_code = API_RESPONSE_UNKNOWN_ERROR
+                messages = tuple((API_RESPONSE_DATA_STRING, m) for m in (str(type(e)), str(e)))
 
+            SolverServer.api_endpoint_respond(socket, return_code, *messages)
+
+
+
+        self.ping_address                    = SolverServer.ping_address(address_base)
+        self.current_solution_address        = SolverServer.current_solution_address(address_base)
+        self.set_edge_labels_address         = SolverServer.set_edge_labels_address(address_base)
+        self.solution_update_request_address = SolverServer.solution_update_request_address(address_base)
+        self.new_solution_address            = SolverServer.new_solution_address(address_base)
+        self.api_endpoint_address            = SolverServer.api_endpoint_address(address_base)
+
+        api_socket                     = ReplySocket(self.api_endpoint_address, timeout=10, respond=api_socket_send)
         ping_socket                    = ReplySocket(self.ping_address, timeout=10)
         solution_notifier_socket       = PublishSocket(self.new_solution_address, timeout=10 / 1000, send=publish_new_solution) # queue timeout is specified in seconds
         solution_request_socket        = ReplySocket(self.current_solution_address, timeout=10, respond=current_solution)
@@ -131,6 +266,7 @@ class SolverServer(object):
 
         self.context = zmq.Context(io_threads=io_threads)
         self.server  = Server(
+            api_socket,
             ping_socket,
             solution_notifier_socket,
             solution_request_socket,
@@ -138,6 +274,7 @@ class SolverServer(object):
             solution_update_request_socket)
 
         logging.info('Starting solver server at base address          %s', address_base)
+        logging.info('Endpoint (send /help for more information)      %s', self.api_endpoint_address)
         logging.info('Ping server at                                  %s', self.ping_address)
         logging.info('Request current solution at                     %s', self.current_solution_address)
         logging.info('Submit edge labels at                           %s', self.set_edge_labels_address)
@@ -162,6 +299,9 @@ class SolverServer(object):
 
     def get_new_solution_address(self):
         return self.new_solution_address
+
+    def get_api_endpoint_address(self):
+        return self.api_endpoint_address
 
     def shutdown(self):
         # TODO handle things like saving etc in here
