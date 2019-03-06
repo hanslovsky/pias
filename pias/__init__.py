@@ -7,7 +7,7 @@ from .edges import EdgeFeatureIO
 from .edge_feature_cache import EdgeFeatureCache
 from .random_forest import RandomForestModelCache, LabelsInconsistency, ModelNotTrained
 from .server import ReplySocket, Server, PublishSocket
-from .solver_server import SolverServer, server_main as solver_server_main
+from .solver_server import SolverServer, server_main as solver_server_main, client_cli_main
 from .version_info import _version as version
 from .workflow import Workflow
 from . import zmq_util

@@ -23,7 +23,8 @@ install_requires = [
 ]
 
 console_scripts = [
-    'pias=pias:solver_server_main'
+    'pias=pias:solver_server_main',
+    'pias-cli=pias:client_cli_main'
 ]
 
 entry_points = dict(console_scripts=console_scripts)
