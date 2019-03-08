@@ -40,7 +40,7 @@ def _default_map_weights(probabilities):
     p_min = 0.001
     p_max = 1. - p_min
     probabilities = np.clip(probabilities, a_min=p_min, a_max=p_max)
-    costs = np.log((1. - probabilities) / probabilities)
+    costs = -np.log((1. - probabilities) / probabilities)
     _logger.trace('Mapped probabilities %s (%s)', costs.shape, costs)
 
     # weight by edge size
@@ -74,14 +74,14 @@ class MulticutAgglomeration(object):
         costs = self.map_weights(weights)
         if known_labels is not None:
             _logger.trace('Known labels are %s', known_labels)
-            known_labels_costs = -1e4 * (2 * np.asarray(known_labels[1], dtype=np.float64) - 1)
+            known_labels_costs = 1e4 * (2 * np.asarray(known_labels[1], dtype=np.float64) - 1)
             costs[known_labels[0]] = known_labels_costs
         _logger.trace('Optimizing multi-cut with graph %s and weights %s (%s)', graph, costs.shape, costs)
         # Qutoing @constantinpape
         # the cost can be in ]-inf, inf[ (I usually clip at ~ ]-6, 6[),
         # where negative costs are repulsive (i.e. nodes are more likely to be disconnected)
         # and positive costs are attractive
-        solution = solve_multicut(graph, -costs)
+        solution = solve_multicut(graph, costs)
         return solution
 
 
