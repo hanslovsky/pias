@@ -1,4 +1,4 @@
-import logging
+from .pias_logging import logging
 
 import nifty
 import threading

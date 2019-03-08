@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-import logging
+from ..pias_logging import logging
 
 import traceback
 

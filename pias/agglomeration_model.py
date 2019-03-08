@@ -1,4 +1,4 @@
-import logging
+from .pias_logging import logging
 
 import nifty.graph.opt.multicut as nifty_mc
 import numpy as np

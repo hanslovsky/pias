@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+from pias import pias_logging
 import logging
 
 import contextlib
