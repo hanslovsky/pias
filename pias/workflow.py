@@ -58,8 +58,8 @@ class State(object):
             try:
                 probabilities = self.random_forest.predict(self.edge_features)
                 # do we need first or second class probabilities?
-                probabilities_zero = probabilities[..., 1]
-                self.solution = self.agglomeration.optimize(self.graph, probabilities_zero, known_labels=(indices, labels))
+                merge_probabilities = probabilities[..., 1]
+                self.solution = self.agglomeration.optimize(self.graph, merge_probabilities, known_labels=(indices, labels))
                 return State.SUCCESS
             except Exception as e:
                 self.logger.error('Error when optimizing multi-cut model %s: %s', type(e), e)
