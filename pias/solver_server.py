@@ -1,4 +1,5 @@
 import logging
+
 import struct
 import sys
 import time
@@ -6,6 +7,7 @@ import time
 import zmq
 
 from .ext import z5py
+from .pias_logging import levels as log_levels
 from .workflow import Workflow
 from .server   import PublishSocket, ReplySocket, Server
 from .zmq_util import send_int, recv_int, send_ints_multipart, recv_ints_multipart, send_more_int, _ndarray_as_bytes, _bytes_as_edges, send_ints
@@ -319,7 +321,7 @@ def server_main(argv=None):
     parser.add_argument('--paintera-dataset', required=True, help=f'Paintera dataset inside CONTAINER that contains datasets `{_EDGE_DATASET}\' and `{_EDGE_FEATURE_DATASET}\'')
     parser.add_argument('--address-base', required=False, help='Address for zmq communication.', default='pias')
     parser.add_argument('--num-io-threads', required=False, type=int, default=1)
-    parser.add_argument('--log-level', required=False, choices=('NOTSET', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL', 'FATAL'), default='INFO')
+    parser.add_argument('--log-level', required=False, choices=log_levels, default='INFO')
     parser.add_argument('--version', action='version', version=f'{version}')
 
     args = parser.parse_args(args=argv)
@@ -345,7 +347,7 @@ def client_cli_main(argv=None):
     parser.add_argument('endpoint')
     parser.add_argument('--address', required=True, help='base address of server for which help is requested')
     parser.add_argument('--version', action='version', version=f'{version}')
-    parser.add_argument('--log-level', required=False, choices=('NOTSET', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL', 'FATAL'), default='INFO')
+    parser.add_argument('--log-level', required=False, choices=log_levels, default='INFO')
 
     args = parser.parse_args(args=argv)
 

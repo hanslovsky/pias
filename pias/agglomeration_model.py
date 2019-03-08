@@ -1,4 +1,5 @@
 import logging
+
 import nifty.graph.opt.multicut as nifty_mc
 import numpy as np
 
@@ -15,7 +16,8 @@ def set_costs_from_uv_ids(graph, costs, uv_pairs, values):
 
 def solve_multicut(graph, costs):
     assert graph.numberOfEdges == len(costs)
-    _logger.debug('Creating multi-cut object from graph %s and costs %s (%s)', graph, costs.shape, costs)
+    _logger.debug('Creating multi-cut object from graph %s and costs %s', graph, costs.shape)
+    _logger.trace('Costs are %s', costs)
     # TODO why do lower costs mean cut the edge?
     # Qutoing @constantinpape
     # the cost can be in ]-inf, inf[ (I usually clip at ~ ]-6, 6[),
@@ -34,12 +36,12 @@ def _default_map_weights(probabilities):
     '''
     # scale the probabilities to avoid diverging costs
     # and transform to costs
-    _logger.debug('Mapping probabilities %s (%s)', probabilities.shape, probabilities)
+    _logger.trace('Mapping probabilities %s (%s)', probabilities.shape, probabilities)
     p_min = 0.001
     p_max = 1. - p_min
     probabilities = np.clip(probabilities, a_min=p_min, a_max=p_max)
     costs = np.log((1. - probabilities) / probabilities)
-    _logger.debug('Mapped probabilities %s (%s)', costs.shape, costs)
+    _logger.trace('Mapped probabilities %s (%s)', costs.shape, costs)
 
     # weight by edge size
     # if edge_sizes is not None:
@@ -71,10 +73,10 @@ class MulticutAgglomeration(object):
 
         costs = self.map_weights(weights)
         if known_labels is not None:
-            _logger.debug('Known labels are %s', known_labels)
+            _logger.trace('Known labels are %s', known_labels)
             known_labels_costs = -1e4 * (2 * np.asarray(known_labels[1], dtype=np.float64) - 1)
             costs[known_labels[0]] = known_labels_costs
-        _logger.debug('Optimizing multi-cut with graph %s and weights %s (%s)', graph, costs.shape, costs)
+        _logger.trace('Optimizing multi-cut with graph %s and weights %s (%s)', graph, costs.shape, costs)
         # Qutoing @constantinpape
         # the cost can be in ]-inf, inf[ (I usually clip at ~ ]-6, 6[),
         # where negative costs are repulsive (i.e. nodes are more likely to be disconnected)

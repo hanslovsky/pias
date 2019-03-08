@@ -1,8 +1,8 @@
 from __future__ import absolute_import, division, print_function
+import logging
 
 import time
 
-import logging
 import threading
 import zmq
 try:

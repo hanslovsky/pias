@@ -1,7 +1,8 @@
 from __future__ import print_function
 
-import contextlib
 import logging
+
+import contextlib
 import os
 import shutil
 import tempfile
