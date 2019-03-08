@@ -59,13 +59,13 @@ class MulticutAgglomeration(object):
         self.map_weights = map_weights
 
     def optimize(self, graph, weights, known_labels=None):
-        '''
+        """
 
         :param graph:
         :param weights:
         :param tuple known_labels: 0: edge is inactive, 1: edge is active (nodes are in same connected component)
         :return:
-        '''
+        """
 
 
         if graph is None or weights is None:
@@ -82,6 +82,9 @@ class MulticutAgglomeration(object):
         # where negative costs are repulsive (i.e. nodes are more likely to be disconnected)
         # and positive costs are attractive
         solution = solve_multicut(graph, costs)
+        _logger.debug('Solution shape %s', solution.shape)
+        _logger.trace('Solution %s', solution)
+        _logger.info('Graph %s: solution size=%d, number of unique labels=%d', graph, solution.size, np.unique(solution).size)
         return solution
 
 
