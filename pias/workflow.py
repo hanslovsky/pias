@@ -34,7 +34,10 @@ class State(object):
         self.edges              = edges
         self.edge_features      = edge_features
         self.graph              = graph
-        self.labeled_samples    = labeled_samples
+        self.samples            = labeled_samples[0]
+        self.labels             = labeled_samples[1]
+        self.indices            = labeled_samples[2]
+        self.uv_pairs           = labeled_samples[3]
         self.random_forest      = RandomForestModelCache(labels=(0, 1), random_forest_kwargs=random_forest_kwargs)
         self.agglomeration      = MulticutAgglomeration()
         self.solution_id        = solution_id
@@ -44,12 +47,10 @@ class State(object):
     def compute(self):
 
         try:
-            samples, labels, indices = self.labeled_samples
-
 
             try:
-                self.logger.debug('Training random forest with samples %s and labels %s', samples, labels)
-                self.random_forest.train_model(samples=samples, labels=labels)
+                self.logger.debug('Training random forest with samples %s and labels %s', self.samples, self.labels)
+                self.random_forest.train_model(samples=self.samples, labels=self.labels)
                 self.logger.debug('Trained random forest model')
             except LabelsInconsistency as e:
                 self.logger.error('Error training random forest %s: %s', type(e), e)
@@ -59,7 +60,7 @@ class State(object):
                 probabilities = self.random_forest.predict(self.edge_features)
                 # do we need first or second class probabilities?
                 merge_probabilities = probabilities[..., 1]
-                self.solution = self.agglomeration.optimize(self.graph, merge_probabilities, known_labels=(indices, labels))
+                self.solution = self.agglomeration.optimize(self.graph, merge_probabilities, known_labels=(self.indices, self.labels))
                 return State.SUCCESS
             except Exception as e:
                 self.logger.error('Error when optimizing multi-cut model %s: %s', type(e), e)
@@ -156,8 +157,8 @@ class Workflow(object):
 
     def _update_edges(self):
         with self.lock:
-            self.edge_feature_cache.update_edge_features()
-            self.edge_label_cache.update_edge_index_mapping(self.edge_feature_cache.get_edges_and_features()[2])
+            edges, _, edge_index_mapping, _ = self.edge_feature_cache.update_edge_features()
+            self.edge_label_cache.update_edge_index_mapping(edges, edge_index_mapping)
 
     def request_set_edge_labels(self, edges, labels):
         # self.update_queue.put(lambda: self._set_edge_labels(edges, labels))
