@@ -177,6 +177,7 @@ class SolverServer(object):
 
         self.pid = os.getpid()
         self.directory = directory
+        self.ground_truth_directory = os.path.join(self.directory, 'ground-truth.n5')
         self.lock_file = self.lock_directory()
         self.address_base = 'ipc://' + os.path.join(directory, 'server')
         self.logger = logging.getLogger('{}.{}'.format(self.__module__, type(self).__name__))
@@ -188,6 +189,15 @@ class SolverServer(object):
             edge_dataset=edge_dataset,
             edge_feature_dataset=edge_feature_dataset)
         self.logger.debug('Initialized workflow')
+
+        if os.path.isdir(self.ground_truth_directory):
+            with z5py.File(self.ground_truth_directory, 'r') as f:
+                edges  = tuple(tuple(it) for it in f['edges'][...])
+                labels = f['labels'][...]
+            self.logger.info('Loading persisted ground truth with edges %s and labels %s', edges, labels)
+            self.workflow._set_edge_labels(edges, labels)
+            self.workflow.request_update_state()
+
 
         def current_solution(_, socket):
             solution = self.workflow.get_latest_state()
@@ -364,7 +374,7 @@ class SolverServer(object):
             f.create_dataset('labels', data=labels)
             f.create_dataset('edges', data=uv_pairs)
 
-        ground_truth = os.path.join(self.directory, 'ground-truth.n5')
+        ground_truth = self.ground_truth_directory
         with self.save_lock:
             while os.path.exists(ground_truth):
                 try:
