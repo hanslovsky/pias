@@ -1,5 +1,8 @@
 import os
 import signal
+import tempfile
+import threading
+from datetime import datetime
 
 import zmq
 
@@ -176,6 +179,7 @@ class SolverServer(object):
         self.address_base = 'ipc://' + os.path.join(directory, 'server')
         self.logger = logging.getLogger('{}.{}'.format(self.__module__, type(self).__name__))
         self.logger.debug('Initializing workflow')
+        self.save_lock = threading.RLock()
         self.workflow = Workflow(
             next_solution_id=next_solution_id, # TODO read from project file
             edge_n5_container=n5_container,
@@ -314,6 +318,7 @@ class SolverServer(object):
         self.logger.debug('Shutting down server at base address %s', self.address_base)
         self.server.stop()
         self.workflow.stop()
+        self.save_ground_truth()
         self.unlock_directory()
 
     def lock_directory(self):
@@ -338,6 +343,33 @@ class SolverServer(object):
         os.remove(self.lock_file)
         self.lock_file = None
 
+    def save_ground_truth(self):
+        state = self.workflow.get_latest_state()
+
+        if state is None:
+            return
+
+        save_tmp_dir = os.path.join(self.directory, 'tmp')
+        os.makedirs(save_tmp_dir, exist_ok=True)
+        tmp_dir = tempfile.mkdtemp(prefix='ground-truth-', suffix='.n5', dir=save_tmp_dir)
+        labels = state.labels
+        uv_pairs = state.uv_pairs
+        with z5py.File(tmp_dir, 'w') as f:
+            f.create_dataset('labels', data=labels)
+            f.create_dataset('edges', data=uv_pairs)
+
+        ground_truth = os.path.join(self.directory, 'ground-truth.n5')
+        with self.save_lock:
+            while os.path.exists(ground_truth):
+                try:
+                    os.rename(ground_truth, ground_truth + '.' + datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                except OSError as e:
+                    # 39: Directory not empty
+                    # 17: File exists
+                    if e.errno not in (17, 39):
+                        raise e
+
+            os.rename(tmp_dir, ground_truth)
 
 
 
