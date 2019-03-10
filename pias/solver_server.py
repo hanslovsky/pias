@@ -1,16 +1,14 @@
-from .pias_logging import logging
-
-import struct
-import sys
-import time
+import os
 
 import zmq
 
 from .ext import z5py
 from .pias_logging import levels as log_levels
+from .pias_logging import logging
+from .server import PublishSocket, ReplySocket, Server
 from .workflow import Workflow
-from .server   import PublishSocket, ReplySocket, Server
-from .zmq_util import send_int, recv_int, send_ints_multipart, recv_ints_multipart, send_more_int, _ndarray_as_bytes, _bytes_as_edges, send_ints
+from .zmq_util import send_int, recv_int, send_ints_multipart, send_more_int, _ndarray_as_bytes, _bytes_as_edges, \
+    send_ints
 
 _EDGE_DATASET         = 'edges'
 _EDGE_FEATURE_DATASET = 'edge-features'
@@ -153,7 +151,7 @@ class SolverServer(object):
 
     def __init__(
             self,
-            address_base,
+            directory,
             n5_container,
             paintera_dataset,
             next_solution_id = 0,
@@ -169,7 +167,12 @@ class SolverServer(object):
         edge_dataset = (paintera_dataset + '/' + SolverServer.default_edge_dataset()).strip('/')
         edge_feature_dataset = (paintera_dataset + '/' + SolverServer.default_edge_feature_dataset()).strip('/')
 
-        self.address_base = address_base
+        os.makedirs(directory, exist_ok=True)
+
+        self.pid = os.getpid()
+        self.directory = directory
+        self.lock_file = self.lock_directory()
+        self.address_base = 'ipc://' + os.path.join(directory, 'server')
         self.logger = logging.getLogger('{}.{}'.format(self.__module__, type(self).__name__))
         self.logger.debug('Initializing workflow')
         self.workflow = Workflow(
@@ -249,12 +252,12 @@ class SolverServer(object):
 
 
 
-        self.ping_address                    = SolverServer.ping_address(address_base)
-        self.current_solution_address        = SolverServer.current_solution_address(address_base)
-        self.set_edge_labels_address         = SolverServer.set_edge_labels_address(address_base)
-        self.solution_update_request_address = SolverServer.solution_update_request_address(address_base)
-        self.new_solution_address            = SolverServer.new_solution_address(address_base)
-        self.api_endpoint_address            = SolverServer.api_endpoint_address(address_base)
+        self.ping_address                    = SolverServer.ping_address(self.address_base)
+        self.current_solution_address        = SolverServer.current_solution_address(self.address_base)
+        self.set_edge_labels_address         = SolverServer.set_edge_labels_address(self.address_base)
+        self.solution_update_request_address = SolverServer.solution_update_request_address(self.address_base)
+        self.new_solution_address            = SolverServer.new_solution_address(self.address_base)
+        self.api_endpoint_address            = SolverServer.api_endpoint_address(self.address_base)
 
         api_socket                     = ReplySocket(self.api_endpoint_address, timeout=10, respond=api_socket_send)
         ping_socket                    = ReplySocket(self.ping_address, timeout=10)
@@ -275,7 +278,7 @@ class SolverServer(object):
             set_edge_labels_request_socket,
             solution_update_request_socket)
 
-        logging.info('Starting solver server at base address          %s', address_base)
+        logging.info('Starting solver server at base address          %s', self.address_base)
         logging.info('Endpoint (send /help for more information)      %s', self.api_endpoint_address)
         logging.info('Ping server at                                  %s', self.ping_address)
         logging.info('Request current solution at                     %s', self.current_solution_address)
@@ -310,6 +313,30 @@ class SolverServer(object):
         self.logger.debug('Shutting down server at base address %s', self.address_base)
         self.server.stop()
         self.workflow.stop()
+        self.unlock_directory()
+
+    def lock_directory(self):
+        lock_file = os.path.join(self.directory, '.lock')
+        # 'x': open for exclusive creation, failing if the file already exists
+        # https://docs.python.org/3/library/functions.html#open
+        try:
+            with open(lock_file, 'x') as f:
+                f.write(str(self.pid))
+        except FileExistsError as e:
+            # 17 is file exists
+            assert e.errno == 17, 'Exception errno (%d) inconsistent with `file exists\' (17)' % e.errno
+            raise Exception('File lock for server directory %s already exists at %s. '
+                            'If you are certain that no other PIAS instance is running '
+                            'on that directory delete %s and restart' % (self.directory, e.filename, e.filename))
+
+        return lock_file
+
+    def unlock_directory(self):
+        if not self.lock_file:
+            raise Exception('Directory %s not locked.' % self.directory)
+        os.remove(self.lock_file)
+        self.lock_file = None
+
 
 
 
@@ -318,21 +345,26 @@ def server_main(argv=None):
     from . import version
     parser = argparse.ArgumentParser()
     parser.add_argument('--container', required=True, help='N5 FS Container with group that contains edges as pairs of fragment labels and features')
-    parser.add_argument('--paintera-dataset', required=True, help=f'Paintera dataset inside CONTAINER that contains datasets `{_EDGE_DATASET}\' and `{_EDGE_FEATURE_DATASET}\'')
-    parser.add_argument('--address-base', required=False, help='Address for zmq communication.', default='pias')
+    parser.add_argument('--paintera-dataset', required=True, help=f'Paintera dataset inside CONTAINER that also contains datasets `{_EDGE_DATASET}\' and `{_EDGE_FEATURE_DATASET}\'')
+    parser.add_argument('--directory', required=False, help='Directory for ipc sockets and serialization of server state.', default='pias')
     parser.add_argument('--num-io-threads', required=False, type=int, default=1)
     parser.add_argument('--log-level', required=False, choices=log_levels, default='INFO')
     parser.add_argument('--version', action='version', version=f'{version}')
 
     args = parser.parse_args(args=argv)
     logging.basicConfig(level=logging.getLevelName(args.log_level))
+    logger = logging.getLogger(__name__)
 
-    server = SolverServer(
-        n5_container=args.container,
-        paintera_dataset=args.paintera_dataset,
-        next_solution_id=0,
-        io_threads=args.num_io_threads,
-        address_base=args.address_base)
+    try:
+        server = SolverServer(
+            n5_container=args.container,
+            paintera_dataset=args.paintera_dataset,
+            next_solution_id=0,
+            io_threads=args.num_io_threads,
+            directory=args.directory)
+    except Exception as e:
+        logger.error('Unable to start server: %s', e)
+        logger.debug('Exception info: %s', e, exc_info=True)
 
     # TODO add handler to shutdown server on ctrl-c
 
