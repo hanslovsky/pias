@@ -66,6 +66,8 @@ The /help endpoint sends  a single zmq string response. All endpoints under /api
     REQ/REP Path to paintera dataset in n5 container
 /api/n5/all
     REQ/REP Send both container and dataset as multiple messages.
+/api/save-ground-truth-labels
+    REQ/REP Serialize current ground truth labels (uv-pairs and labels) into server directory
 
 Use the following addresses for specific queries:
 
@@ -245,6 +247,10 @@ class SolverServer(object):
                 elif message == '/api/n5/dataset':
                     messages = ((API_RESPONSE_DATA_STRING, paintera_dataset),)
                     self.logger.info('Collected dataset as message: %s', messages)
+                elif message == '/api/save-ground-truth-labels':
+                    exit_code = self.save_ground_truth()
+                    self.logger.info('Saved ground truth: %d (0: success, 1: no data available)', exit_code)
+                    messages = ((API_RESPONSE_DATA_INT, exit_code),)
                 else:
                     return_code = API_RESPONSE_ENDPOINT_UNKNOWN
                     messages = ((API_RESPONSE_DATA_STRING, "Endpoint unknown"), (API_RESPONSE_DATA_STRING, endpoint))
@@ -347,7 +353,7 @@ class SolverServer(object):
         state = self.workflow.get_latest_state()
 
         if state is None:
-            return
+            return 1
 
         save_tmp_dir = os.path.join(self.directory, 'tmp')
         os.makedirs(save_tmp_dir, exist_ok=True)
@@ -370,6 +376,8 @@ class SolverServer(object):
                         raise e
 
             os.rename(tmp_dir, ground_truth)
+
+        return 0
 
 
 
