@@ -151,11 +151,11 @@ class SolverServer(object):
 
     def __init__(
             self,
+            context,
             directory,
             n5_container,
             paintera_dataset,
-            next_solution_id = 0,
-            io_threads = 1):
+            next_solution_id = 0):
         super(SolverServer, self).__init__()
 
         if not SolverServer.is_paintera_data(n5_container, paintera_dataset):
@@ -269,7 +269,7 @@ class SolverServer(object):
         self.workflow.add_solution_update_listener(lambda solution_id, exit_code, solution: solution_notifier_socket.queue.put((solution_id, exit_code)))
 
 
-        self.context = zmq.Context(io_threads=io_threads)
+        self.context = context
         self.server  = Server(
             api_socket,
             ping_socket,
@@ -355,16 +355,18 @@ def server_main(argv=None):
     logging.basicConfig(level=logging.getLevelName(args.log_level))
     logger = logging.getLogger(__name__)
 
+    context = zmq.Context(args.num_io_threads)
     try:
         server = SolverServer(
+            context = context,
             n5_container=args.container,
             paintera_dataset=args.paintera_dataset,
             next_solution_id=0,
-            io_threads=args.num_io_threads,
             directory=args.directory)
     except Exception as e:
         logger.error('Unable to start server: %s', e)
         logger.debug('Exception info: %s', e, exc_info=True)
+        context.destroy()
 
     # TODO add handler to shutdown server on ctrl-c
 
