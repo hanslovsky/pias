@@ -77,12 +77,13 @@ class TestSolverServerPing(unittest.TestCase):
     def test(self):
 
         with _tempdir() as tmpdir:
-            address_base = 'inproc://address'
             container    = os.path.join(tmpdir, 'edge-group')
             _mk_dummy_edge_data(container)
             self.logger.debug('Starting solver server')
+            context = zmq.Context(1)
             server = SolverServer(
-                address_base=address_base,
+                context=context,
+                directory=os.path.join(tmpdir, 'pias'),
                 n5_container=container,
                 paintera_dataset='')
             try:
@@ -104,6 +105,7 @@ class TestSolverServerPing(unittest.TestCase):
 
             finally:
                 server.shutdown()
+                context.destroy()
 
 class TestSolverCurrentSolution(unittest.TestCase):
 
@@ -114,11 +116,12 @@ class TestSolverCurrentSolution(unittest.TestCase):
     def test(self):
 
         with _tempdir() as tmpdir:
-            address_base = 'inproc://address'
             container    = os.path.join(tmpdir, 'edge-group')
             _mk_dummy_edge_data(container)
+            context = zmq.Context(1)
             server = SolverServer(
-                address_base=address_base,
+                context = context,
+                directory=os.path.join(tmpdir, 'pias'),
                 n5_container=container,
                 paintera_dataset='')
 
@@ -135,6 +138,7 @@ class TestSolverCurrentSolution(unittest.TestCase):
                 self.assertEqual('', extra_info)
             finally:
                 server.shutdown()
+                context.destroy()
 
 class TestSolverSetEdgeLabels(unittest.TestCase):
 
@@ -145,11 +149,12 @@ class TestSolverSetEdgeLabels(unittest.TestCase):
     def test(self):
 
         with _tempdir() as tmpdir:
-            address_base = 'inproc://address'
             container    = os.path.join(tmpdir, 'edge-group')
             edges, _, labels = _mk_dummy_edge_data(container)
+            context = zmq.Context(1)
             server = SolverServer(
-                address_base=address_base,
+                context=context,
+                directory=os.path.join(tmpdir, 'pias'),
                 n5_container=container,
                 paintera_dataset='')
 
@@ -199,11 +204,12 @@ class TestRequestUpdateSolution(unittest.TestCase):
     def test(self):
 
         with _tempdir() as tmpdir:
-            address_base = 'inproc://address'
             container    = os.path.join(tmpdir, 'edge-group')
             edges, features, labels = _mk_dummy_edge_data(container)
+            context = zmq.Context(1)
             server = SolverServer(
-                address_base=address_base,
+                context=context,
+                directory=os.path.join(tmpdir, 'pias'),
                 n5_container=container,
                 paintera_dataset='/')
 
@@ -311,6 +317,7 @@ class TestRequestUpdateSolution(unittest.TestCase):
 
             finally:
                 server.shutdown()
+                context.destroy()
 
 
 
@@ -323,12 +330,13 @@ class TestApiEndpoint(unittest.TestCase):
     def test(self):
 
         with _tempdir() as tmpdir:
-            address_base = 'inproc://address'
             dataset      = 'paintera-dataset'
             container    = os.path.join(tmpdir, 'pias.n5')
             _mk_dummy_edge_data(container, paintera_dataset=dataset)
+            context = zmq.Context(1)
             server = SolverServer(
-                address_base=address_base,
+                context = context,
+                directory=os.path.join(tmpdir, 'pias'),
                 n5_container=container,
                 paintera_dataset=dataset)
 
@@ -351,7 +359,7 @@ class TestApiEndpoint(unittest.TestCase):
                 self.assertEqual(API_RESPONSE_DATA_STRING, help_message_type)
                 help_message = api_socket.recv_string()
                 self.logger.debug(help_message)
-                self.assertEqual(SolverServer.create_help_message(address_base), help_message)
+                self.assertEqual(SolverServer.create_help_message(server.address_base), help_message)
 
                 api_socket.send_string('/api/n5/container')
                 container_response_code = zmq_util.recv_int(api_socket)
@@ -394,3 +402,4 @@ class TestApiEndpoint(unittest.TestCase):
 
             finally:
                 server.shutdown()
+                context.destroy()
