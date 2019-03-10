@@ -1,4 +1,5 @@
 import os
+import signal
 
 import zmq
 
@@ -363,6 +364,15 @@ def server_main(argv=None):
             paintera_dataset=args.paintera_dataset,
             next_solution_id=0,
             directory=args.directory)
+
+        def sigint_handler(signum, frame):
+            logger.debug('Signal handler called with signal %s', signum)
+            logger.info('Shutting down server at %s (%s)', server.directory, server.address_base)
+            server.shutdown()
+            context.destroy()
+
+        signal.signal(signal.SIGINT, handler=sigint_handler)
+
     except Exception as e:
         logger.error('Unable to start server: %s', e)
         logger.debug('Exception info: %s', e, exc_info=True)
